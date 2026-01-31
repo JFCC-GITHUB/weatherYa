@@ -1,0 +1,18 @@
+{
+  "name": "RetroWeather Pro",
+  "short_name": "天氣預報",
+  "description": "專業深度氣象分析工具",
+  "start_url": "RetroWeather.html",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
