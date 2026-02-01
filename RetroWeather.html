@@ -316,11 +316,11 @@
             // 2. 日本區域 (JMA)
             if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
 
-            // 3. 韓國區域 (KMA)
-            if (lat >= 33 && lat <= 43 && lon >= 124 && lon <= 132) return 'kma_gdps';
+            // 2. 韓國區域 (KMA) - 優先於日本，覆蓋首爾
+            if (lat >= 33.0 && lat <= 39.0 && lon >= 124.0 && lon <= 130.5) return 'kma_gdps';
 
-            // 4. 歐洲區域 (ECMWF)
-            if (lat >= 34 && lat <= 72 && lon >= -25 && lon <= 45) return 'ecmwf_ifs025';
+            // 3. 日本區域 (JMA)
+            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
 
             // 5. 美洲區域 (GFS)
             if (lat >= 7 && lat <= 72 && lon >= -170 && lon <= -50) return 'gfs_global';
