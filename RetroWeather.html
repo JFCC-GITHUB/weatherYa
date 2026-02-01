@@ -2,12 +2,12 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RetroWeather Zenith</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Zenith 5.0 - Prism Pro</title>
     
-    <!-- 核心資源：Tailwind CSS, Chart.js, Leaflet -->
+    <!-- External Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,266 +16,223 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+TC:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap');
         
         :root {
-            --bg-main: #0a0a0c;
-            --accent: #3b82f6;
-            --card-bg: rgba(23, 23, 26, 0.8);
+            --accent-blue: #0066FF;
+            --accent-red: #FF3B30;
+            --accent-green: #34C759;
+            --bg-pure: #FFFFFF;
+            --card-bg: #F2F2F7;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            font-family: "Inter", "Noto Sans TC", "Noto Sans JP", sans-serif;
         }
 
         body {
-            background-color: var(--bg-main);
-            color: #f8fafc;
-            font-family: "Inter", "Noto Sans TC", "Noto Sans JP", sans-serif;
-            letter-spacing: -0.01em;
+            background-color: var(--bg-pure);
+            color: #1C1C1E;
+            margin: 0;
+            padding-bottom: env(safe-area-inset-bottom);
         }
-
-        .zenith-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 24px;
-            overflow: hidden;
-        }
-
-        .btn-pill {
-            padding: 8px 16px;
-            border-radius: 99px;
-            font-size: 12px;
-            font-weight: 800;
-            transition: all 0.2s;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-active {
-            background: var(--accent);
-            border-color: var(--accent);
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-        }
-
-        #map {
-            width: 100%;
-            aspect-ratio: 1/1;
-            border-radius: 20px;
-            filter: grayscale(0.2) contrast(1.1);
-        }
-
-        .diff-up { color: #f87171; }
-        .diff-down { color: #60a5fa; }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
-
-        /* 動態載入動畫 */
-        .shimmer {
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-            background-size: 200% 100%;
-            animation: loading 1.5s infinite;
-        }
-        @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+        
+        .glass-card {
+            background: #FFFFFF;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
 
-        .loader-screen {
+        .btn-action {
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            transition: all 0.2s;
+            background: #F2F2F7;
+            color: #8E8E93;
+        }
+
+        .btn-action.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        #mini-map {
+            width: 100px;
+            height: 100px;
+            border-radius: 18px;
+            overflow: hidden;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .loader {
             position: fixed; inset: 0; z-index: 9999;
-            background: var(--bg-main);
+            background: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease;
         }
     </style>
 </head>
-<body class="p-4 md:p-8 lg:p-12 pb-24">
+<body class="overflow-x-hidden">
 
-    <div id="loader" class="loader-screen">
-        <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
-        <div id="loader-text" class="text-[10px] font-black tracking-[0.5em] text-blue-500 uppercase">Synchronizing Satellite Data...</div>
+    <!-- Loading Screen -->
+    <div id="loader" class="loader">
+        <div class="w-12 h-12 border-[5px] border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+        <p class="mt-4 text-xs font-black tracking-widest text-slate-400 uppercase">Zenith 5.0 - Prism Pro</p>
     </div>
 
-    <!-- 搜尋視窗 -->
-    <div id="search-modal" class="fixed inset-0 z-[5000] hidden items-center justify-center bg-black/80 backdrop-blur-xl p-4">
-        <div class="zenith-card p-6 w-full max-w-lg shadow-2xl">
-            <h2 id="ui-search-title" class="text-xl font-black mb-4">新增地點</h2>
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="search-input" class="flex-grow bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:ring-2 ring-blue-500" placeholder="...">
-                <button onclick="performSearch()" class="bg-blue-600 px-6 py-3 rounded-xl font-black active:scale-95 transition">Go</button>
+    <!-- Search UI -->
+    <div id="search-modal" class="fixed inset-0 z-[5000] hidden bg-white p-6 pt-12 overflow-y-auto">
+        <div class="max-w-md mx-auto">
+            <div class="flex items-center justify-between mb-8">
+                <h2 id="ui-search-title" class="text-3xl font-black">---</h2>
+                <button onclick="toggleSearch(false)" class="text-slate-400 font-bold" id="ui-cancel">---</button>
             </div>
-            <div id="search-results" class="max-h-60 overflow-y-auto space-y-2 no-scrollbar"></div>
-            <button onclick="toggleSearch(false)" class="w-full mt-4 py-2 text-white/40 font-bold hover:text-white" id="ui-cancel">取消</button>
+            <div class="flex gap-2 mb-8">
+                <input type="text" id="search-input" class="flex-grow bg-slate-100 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="...">
+                <button onclick="performSearch()" class="bg-black text-white px-6 py-4 rounded-2xl font-black">Search</button>
+            </div>
+            <div id="search-results" class="space-y-4"></div>
         </div>
     </div>
 
-    <header class="max-w-7xl mx-auto mb-8">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-            <!-- 語系切換 -->
-            <div class="flex gap-2">
-                <button onclick="changeLang('zh')" id="lang-zh" class="btn-pill">正體中文</button>
-                <button onclick="changeLang('ja')" id="lang-ja" class="btn-pill">日本語</button>
-                <button onclick="changeLang('en')" id="lang-en" class="btn-pill">ENGLISH</button>
-            </div>
-
-            <!-- 模型顯示與切換 -->
-            <div class="flex flex-col items-end gap-1">
-                <div class="flex items-center gap-3">
-                    <span id="ui-model-label" class="text-[10px] font-black opacity-30 uppercase tracking-widest">Model Engine</span>
-                    <select id="model-selector" onchange="manualModel(this.value)" class="bg-blue-600/10 border border-blue-500/30 text-blue-400 text-xs font-black px-3 py-1.5 rounded-lg outline-none cursor-pointer">
-                        <option value="auto">AUTO (智慧判定)</option>
-                        <option value="jma_seamless">JMA (日本氣象廳)</option>
-                        <option value="kma_deterministic">KMA (韓國氣象廳)</option>
-                        <option value="ecmwf_ifs04">ECMWF (歐洲中心)</option>
-                        <option value="gfs_seamless">GFS (美國全球)</option>
+    <!-- Main Content -->
+    <main class="max-w-md mx-auto px-5 py-8 space-y-6">
+        
+        <!-- Header: Control Panel -->
+        <header class="space-y-6">
+            <div class="flex justify-between items-center">
+                <div class="flex bg-slate-100 p-1 rounded-xl">
+                    <button onclick="setLang('zh')" id="btn-zh" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">中</button>
+                    <button onclick="setLang('ja')" id="btn-ja" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">日</button>
+                    <button onclick="setLang('en')" id="btn-en" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">EN</button>
+                </div>
+                <div class="text-right">
+                    <div id="final-model-badge" class="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-black uppercase">---</div>
+                    <select id="model-select" onchange="manualModelChange(this.value)" class="block mt-1 text-[10px] font-bold text-slate-400 bg-transparent border-none outline-none text-right w-full">
+                        <option value="auto">AUTO</option>
+                        <option value="jma_seamless">JMA</option>
+                        <option value="kma_local">KMA</option>
+                        <option value="ecmwf_ifs025">ECMWF</option>
+                        <option value="gfs_global">GFS</option>
                     </select>
                 </div>
-                <div id="final-model-badge" class="text-[9px] font-mono text-blue-500/60 uppercase">Determining Optimum Path...</div>
+            </div>
+
+            <div id="location-scroll" class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                <!-- Location Pills Inject Here -->
+            </div>
+        </header>
+
+        <!-- Current Weather & Mini Map -->
+        <section class="glass-card p-6">
+            <div class="flex justify-between items-start gap-4">
+                <div class="flex-grow min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span id="ui-now-tag" class="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase">---</span>
+                        <span id="current-time" class="text-[10px] font-bold text-slate-400">--:--</span>
+                    </div>
+                    <h1 id="city-name" class="text-3xl font-black tracking-tight text-slate-900 truncate">---</h1>
+                    <div class="flex items-baseline gap-1 mt-2">
+                        <span id="curr-temp" class="text-6xl font-black tracking-tighter">--</span>
+                        <span class="text-xl font-black text-blue-500">°C</span>
+                    </div>
+                </div>
+                <div id="mini-map"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mt-8">
+                <div class="bg-slate-50 p-3 rounded-2xl text-center">
+                    <div id="ui-label-feels" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
+                    <div class="text-sm font-black text-slate-800"><span id="curr-feels">--</span>°C</div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-2xl text-center">
+                    <div id="ui-label-rain" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
+                    <div class="text-sm font-black text-blue-600"><span id="curr-rain">--</span>mm</div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-2xl text-center">
+                    <div id="ui-label-wind" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
+                    <div class="text-sm font-black text-slate-800"><span id="curr-wind">--</span><span class="text-[8px] ml-0.5">km/h</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison: Yesterday & Today -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="glass-card p-4">
+                <div id="ui-label-yesterday" class="text-[10px] font-black text-slate-400 mb-3 uppercase">---</div>
+                <div class="flex justify-between items-center">
+                    <span id="yes-emoji" class="text-3xl">--</span>
+                    <div class="text-right">
+                        <div class="text-sm font-black text-slate-700"><span id="yes-hilo">--/--</span>°</div>
+                        <div class="text-[9px] font-bold text-slate-400">💨 <span id="yes-wind">--</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="glass-card p-4 border-l-4 border-blue-500">
+                <div class="flex justify-between items-center mb-3">
+                    <div id="ui-label-today" class="text-[10px] font-black text-blue-500 uppercase">---</div>
+                    <div id="today-diff" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">--</div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span id="today-emoji" class="text-3xl">--</span>
+                    <div class="text-right">
+                        <div class="text-sm font-black text-slate-700"><span id="today-hilo">--/--</span>°</div>
+                        <div class="text-[9px] font-bold text-blue-500">💧 <span id="today-rain-prob">--</span>%</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- 地點導覽 -->
-        <div class="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
-            <div id="location-bar" class="flex gap-3"></div>
-            <button onclick="toggleSearch(true)" class="w-10 h-10 flex-shrink-0 bg-white/5 border border-white/10 rounded-full flex items-center justify-center hover:bg-white/10 transition">＋</button>
-        </div>
-    </header>
-
-    <main class="max-w-7xl mx-auto space-y-8">
-        <!-- 第一區塊：當前氣候與地圖 -->
-        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 zenith-card p-8 md:p-12 flex flex-col justify-between min-h-[400px]">
-                <div>
-                    <h1 id="display-city" class="text-4xl md:text-6xl font-black tracking-tighter mb-2">---</h1>
-                    <p id="display-time" class="text-xs font-bold opacity-30 uppercase tracking-[0.3em] mb-8">---</p>
-                    
-                    <div class="flex items-center gap-8">
-                        <div id="main-emoji" class="text-7xl md:text-9xl">☀️</div>
-                        <div>
-                            <div class="flex items-start">
-                                <span id="main-temp" class="text-7xl md:text-9xl font-black tracking-tighter">--</span>
-                                <span class="text-3xl font-black mt-4 ml-1 text-blue-500">°</span>
-                            </div>
-                            <div class="text-sm font-bold opacity-50"><span id="ui-feels">體感</span> <span id="main-feels">--</span>°C</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4 mt-12">
-                    <div class="bg-white/5 p-5 rounded-2xl border border-white/5">
-                        <div id="ui-rain-label" class="text-[9px] font-black opacity-30 uppercase tracking-widest mb-1">降雨量</div>
-                        <div class="text-2xl font-black text-blue-400">💧 <span id="main-rain">--</span><span class="text-xs ml-1 opacity-50">mm</span></div>
-                    </div>
-                    <div class="bg-white/5 p-5 rounded-2xl border border-white/5">
-                        <div id="ui-wind-label" class="text-[9px] font-black opacity-30 uppercase tracking-widest mb-1">風速</div>
-                        <div class="text-2xl font-black text-emerald-400">💨 <span id="main-wind">--</span><span class="text-xs ml-1 opacity-50">km/h</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 彩色靜態地圖替代區 (使用 Leaflet 即時渲染) -->
-            <div class="zenith-card p-4 flex flex-col items-center">
-                <div id="map"></div>
-                <div class="mt-4 text-[9px] font-black opacity-20 uppercase tracking-[0.4em]">Geo-Layer Level 09 / Active Rendering</div>
-            </div>
-        </section>
-
-        <!-- 第二區塊：昨日與今日 -->
-        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- 昨日 -->
-            <div class="zenith-card p-6 border-l-4 border-white/20">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 id="ui-yesterday" class="text-[10px] font-black opacity-40 uppercase tracking-widest">昨日回顧</h3>
-                    <span id="date-yes" class="text-[10px] font-mono opacity-20">---</span>
-                </div>
-                <div class="flex justify-between items-end">
-                    <div class="text-5xl opacity-20">🕰️</div>
-                    <div class="text-right">
-                        <div class="text-2xl font-black"><span id="yes-hilo">-- / --</span>°C</div>
-                        <div class="text-[10px] font-bold opacity-30 mt-1">Feels <span id="yes-feels-hilo">-- / --</span>°C</div>
-                        <div class="flex gap-4 justify-end mt-3 text-[10px] font-black opacity-40">
-                            <span>💧 <span id="yes-rain">--</span> mm</span>
-                            <span>💨 <span id="yes-wind">--</span> km/h</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- 今日 -->
-            <div class="zenith-card p-6 border-l-4 border-blue-500 shadow-xl shadow-blue-500/5">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 id="ui-today" class="text-[10px] font-black text-blue-500 uppercase tracking-widest">今日預報</h3>
-                    <div id="temp-diff-tag" class="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/10">--</div>
-                </div>
-                <div class="flex justify-between items-end">
-                    <div id="today-emoji" class="text-5xl">☀️</div>
-                    <div class="text-right">
-                        <div class="text-2xl font-black text-blue-400"><span id="today-hilo">-- / --</span>°C</div>
-                        <div class="text-[10px] font-bold opacity-30 mt-1">Feels <span id="today-feels-hilo">-- / --</span>°C</div>
-                        <div class="flex gap-4 justify-end mt-3 text-[10px] font-black text-blue-400">
-                            <span>💧 <span id="today-rain">--</span> mm</span>
-                            <span>💨 <span id="today-wind">--</span> km/h</span>
-                        </div>
-                    </div>
+        <!-- Hourly Forecast (12H) -->
+        <section class="glass-card p-5 overflow-hidden">
+            <h3 id="ui-label-12h" class="text-xs font-black text-slate-400 mb-6 uppercase">---</h3>
+            <div class="overflow-x-auto no-scrollbar">
+                <div id="hourly-icons" class="flex justify-between mb-1 px-4 min-w-[650px]"></div>
+                <div class="h-52 min-w-[650px]">
+                    <canvas id="chart-hourly"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- 第三區塊：12小時趨勢 -->
-        <section>
-            <h3 id="ui-hourly-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-4 flex items-center gap-2">
-                <span class="w-4 h-[2px] bg-blue-500"></span> 12小時趨勢預報
-            </h3>
-            <div class="zenith-card p-6 overflow-x-auto no-scrollbar">
-                <div class="h-64 min-w-[800px]">
-                    <canvas id="hourly-chart"></canvas>
+        <!-- 8 Day Trend -->
+        <section class="glass-card p-5 overflow-hidden">
+            <h3 id="ui-label-8d" class="text-xs font-black text-slate-400 mb-6 uppercase">---</h3>
+            <div class="overflow-x-auto no-scrollbar">
+                <div id="daily-icons" class="flex justify-between mb-1 px-4 min-w-[550px]"></div>
+                <div class="h-52 min-w-[550px]">
+                    <canvas id="chart-daily"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- 第四區塊：8日折線圖 -->
-        <section>
-            <h3 id="ui-8day-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-amber-500 mb-4 flex items-center gap-2">
-                <span class="w-4 h-[2px] bg-amber-500"></span> 8日趨勢分析 (含昨日)
-            </h3>
-            <div class="zenith-card p-6">
-                <div class="h-80 w-full">
-                    <canvas id="daily-chart"></canvas>
-                </div>
-            </div>
-        </section>
+        <!-- 14 Day Detailed List -->
+        <section id="list-14d" class="space-y-3 pb-8"></section>
 
-        <!-- 第五區塊：14日深度預報 -->
-        <section>
-            <h3 id="ui-14day-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-4 flex items-center gap-2">
-                <span class="w-4 h-[2px] bg-blue-500"></span> 14日深度預報
-            </h3>
-            <div id="forecast-list" class="space-y-3"></div>
-        </section>
     </main>
 
     <script>
-        /**
-         * RetroWeather Zenith Engine
-         * 資料出處：Open-Meteo API, Nominatim Geocoding API
-         */
-
+        // --- I18N Configuration ---
         const I18N = {
             zh: {
-                current_loc: "目前位置", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪",
-                feels: "體感", rain: "降雨量", wind: "風速", yesterday: "昨日回顧", today: "今日預報",
-                hourly: "12小時趨勢預報", d8: "8日趨勢分析 (含昨日)", d14: "14日深度預報",
-                diff_vs: "較前日", search_title: "新增地點", cancel: "取消",
-                searching: "搜尋中...", no_results: "查無結果", search_placeholder: "請輸入城市名稱...",
-                temp: "氣溫", feels_label: "體感高低溫"
+                search_title: "搜尋地點", cancel: "取消", now: "現在", feels: "體感", rain: "降雨", wind: "風速",
+                yesterday: "昨日回顧", today: "今日預報", h12: "12小時預報", d8: "8日氣溫趨勢",
+                current_loc: "目前位置", search_placeholder: "城市、行政區...",
+                cities: { zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
             },
             en: {
-                current_loc: "Current", zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka",
-                feels: "Feels", rain: "Rain", wind: "Wind", yesterday: "Yesterday", today: "Today",
-                hourly: "12-Hour Trend", d8: "8-Day Trend (Inc. Past)", d14: "14-Day Deep Forecast",
-                diff_vs: "vs Prev", search_title: "Add Location", cancel: "Cancel",
-                searching: "Searching...", no_results: "No results", search_placeholder: "Enter city name...",
-                temp: "Temp", feels_label: "Feels H/L"
+                search_title: "Search Location", cancel: "Cancel", now: "NOW", feels: "FEELS", rain: "RAIN", wind: "WIND",
+                yesterday: "YESTERDAY", today: "TODAY", h12: "12-HOUR TREND", d8: "8-DAY TREND",
+                current_loc: "MY LOCATION", search_placeholder: "City, area...",
+                cities: { zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka" }
             },
             ja: {
-                current_loc: "現在地", zhubei: "竹北", taichung: "台中国", taipei: "台北", osaka: "大阪",
-                feels: "体感", rain: "降水量", wind: "風速", yesterday: "昨日の回顧", today: "今日の予報",
-                hourly: "12時間趨勢", d8: "8日間トレンド (昨日含む)", d14: "14日間詳細予報",
-                diff_vs: "前日比", search_title: "地点追加", cancel: "キャンセル",
-                searching: "検索中...", no_results: "結果なし", search_placeholder: "都市名を入力...",
-                temp: "気温", feels_label: "体感高低"
+                search_title: "場所を検索", cancel: "戻る", now: "現在", feels: "体感", rain: "降水", wind: "風速",
+                yesterday: "昨日", today: "今日", h12: "12時間予報", d8: "8日間推移",
+                current_loc: "現在地", search_placeholder: "都市名を入力...",
+                cities: { zhubei: "竹北", taichung: "台中国", taipei: "台北", osaka: "大阪" }
             }
         };
 
@@ -283,28 +240,34 @@
             lang: localStorage.getItem('zenith_lang') || 'zh',
             activeId: 'gps',
             coords: { lat: 24.83, lon: 121.01 },
-            model: localStorage.getItem('zenith_model') || 'auto',
-            locations: JSON.parse(localStorage.getItem('zenith_locs')) || [
+            model: 'auto',
+            locations: JSON.parse(localStorage.getItem('zenith_locs_v5')) || [
                 { id: 'gps', name: 'current_loc', lat: null, lon: null },
-                { id: 'zhubei', name: 'zhubei', lat: 24.83, lon: 121.01 },
-                { id: 'taichung', name: 'taichung', lat: 24.14, lon: 120.67 },
-                { id: 'taipei', name: 'taipei', lat: 25.03, lon: 121.56 },
-                { id: 'osaka', name: 'osaka', lat: 34.69, lon: 135.50 }
+                { id: 'zhubei', name: 'cities.zhubei', lat: 24.83, lon: 121.01 },
+                { id: 'taichung', name: 'cities.taichung', lat: 24.23, lon: 120.67 },
+                { id: 'taipei', name: 'cities.taipei', lat: 25.03, lon: 121.56 },
+                { id: 'osaka', name: 'cities.osaka', lat: 34.69, lon: 135.50 }
             ],
+            charts: {},
             map: null,
-            marker: null,
-            charts: {}
+            marker: null
         };
 
-        // 安全數值處理
-        const safe = (val, def = 0) => (val === null || val === undefined || isNaN(val)) ? def : val;
+        // Register Chart.js DataLabels plugin
+        Chart.register(ChartDataLabels);
 
-        // 指數退避重試
-        async function fetchRetry(url, retries = 5) {
+        function getTranslation(key) {
+            const keys = key.split('.');
+            let val = I18N[STATE.lang];
+            keys.forEach(k => val = val ? val[k] : key);
+            return val || key;
+        }
+
+        async function safeApiFetch(url, retries = 5) {
             for (let i = 0; i < retries; i++) {
                 try {
                     const res = await fetch(url);
-                    if (!res.ok) throw new Error(res.status);
+                    if (!res.ok) throw new Error("Fetch Failed");
                     return await res.json();
                 } catch (e) {
                     if (i === retries - 1) throw e;
@@ -313,274 +276,156 @@
             }
         }
 
-        // 地緣模型判定
-        function getAutoModel(lat, lon) {
-            // 台灣全境 (鎖定 JMA)
+        function determineModel(lat, lon) {
             if (lat >= 21.8 && lat <= 25.5 && lon >= 119.5 && lon <= 122.5) return 'jma_seamless';
+            if (lat >= 24 && lat <= 46 && lon >= 123 && lon <= 149) return 'jma_seamless';
+            if (lat >= 33 && lat <= 39 && lon >= 124 && lon <= 130) return 'kma_local';
+            if (lat >= 35 && lat <= 70 && lon >= -10 && lon <= 40) return 'ecmwf_ifs04';
+            if (lat >= 25 && lat <= 50 && lon >= -125 && lon <= -65) return 'gfs_global';
             
-            // 日本全境 (JMA)
-            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
-            
-            // 韓國全境 (KMA)
-            if (lat >= 33 && lat <= 43 && lon >= 124 && lon <= 132) return 'kma_deterministic';
-
-            // 歐洲 (ECMWF 範圍估算)
-            if (lat >= 35 && lat <= 72 && lon >= -25 && lon <= 45) return 'ecmwf_ifs04';
-
-            // 美洲 (GFS 範圍估算)
-            if (lat >= 7 && lat <= 72 && lon >= -170 && lon <= -50) return 'gfs_seamless';
-
-            // 距離判定：找出最近的氣象中心
-            const hubs = [
-                { id: 'jma_seamless', lat: 35.6, lon: 139.7 }, // 東京
-                { id: 'kma_deterministic', lat: 37.5, lon: 126.9 }, // 首爾
-                { id: 'ecmwf_ifs04', lat: 51.4, lon: -1.3 }, // 倫敦 (ECMWF)
-                { id: 'gfs_seamless', lat: 38.9, lon: -77.0 } // 華盛頓
+            const centers = [
+                { id: 'jma_seamless', lat: 35, lon: 139 },
+                { id: 'kma_local', lat: 37, lon: 127 },
+                { id: 'ecmwf_ifs04', lat: 48, lon: 2 },
+                { id: 'gfs_global', lat: 40, lon: -100 }
             ];
-            
-            let best = 'ecmwf_ifs04';
+            let nearest = centers[0];
             let minDist = Infinity;
-            hubs.forEach(h => {
-                const d = Math.sqrt(Math.pow(lat - h.lat, 2) + Math.pow(lon - h.lon, 2));
-                if (d < minDist) { minDist = d; best = h.id; }
+            centers.forEach(c => {
+                const d = Math.sqrt(Math.pow(lat - c.lat, 2) + Math.pow(lon - c.lon, 2));
+                if (d < minDist) { minDist = d; nearest = c; }
             });
-            return best;
+            return nearest.id;
         }
 
-        function getWeatherEmoji(code) {
-            const c = safe(code);
-            if (c <= 1) return '☀️';
-            if (c <= 3) return '🌤️';
-            if (c <= 48) return '🌫️';
-            if (c <= 67) return '🌧️';
-            if (c <= 77) return '❄️';
-            if (c <= 82) return '🌦️';
-            return '⛈️';
+        function getEmoji(code) {
+            if (code === undefined || code === null) return '❓';
+            if (code <= 1) return '☀️';
+            if (code <= 3) return '🌤️';
+            if (code <= 48) return '🌫️';
+            if (code <= 55) return '🌦️';
+            if (code <= 67) return '🌧️';
+            if (code <= 77) return '❄️';
+            if (code <= 82) return '🌧️';
+            if (code <= 99) return '⛈️';
+            return '☁️';
         }
 
-        // 初始化與切換
-        async function changeLang(l) {
-            STATE.lang = l;
-            localStorage.setItem('zenith_lang', l);
-            
-            // 更新 UI 靜態文字
-            const t = I18N[l];
-            document.getElementById('ui-search-title').innerText = t.search_title;
-            document.getElementById('search-input').placeholder = t.search_placeholder;
-            document.getElementById('ui-cancel').innerText = t.cancel;
-            document.getElementById('ui-feels').innerText = t.feels;
-            document.getElementById('ui-rain-label').innerText = t.rain;
-            document.getElementById('ui-wind-label').innerText = t.wind;
-            document.getElementById('ui-yesterday').innerText = t.yesterday;
-            document.getElementById('ui-today').innerText = t.today;
-            document.getElementById('ui-hourly-title').innerHTML = `<span class="w-4 h-[2px] bg-blue-500"></span> ${t.hourly}`;
-            document.getElementById('ui-8day-title').innerHTML = `<span class="w-4 h-[2px] bg-amber-500"></span> ${t.d8}`;
-            document.getElementById('ui-14day-title').innerHTML = `<span class="w-4 h-[2px] bg-blue-500"></span> ${t.d14}`;
-            
-            // 按鈕狀態
-            document.querySelectorAll('.btn-pill').forEach(b => b.classList.remove('btn-active'));
-            document.getElementById('lang-' + l).classList.add('btn-active');
+        function updateStaticText() {
+            document.getElementById('ui-search-title').innerText = getTranslation('search_title');
+            document.getElementById('ui-cancel').innerText = getTranslation('cancel');
+            document.getElementById('search-input').placeholder = getTranslation('search_placeholder');
+            document.getElementById('ui-now-tag').innerText = getTranslation('now');
+            document.getElementById('ui-label-feels').innerText = getTranslation('feels');
+            document.getElementById('ui-label-rain').innerText = getTranslation('rain');
+            document.getElementById('ui-label-wind').innerText = getTranslation('wind');
+            document.getElementById('ui-label-yesterday').innerText = getTranslation('yesterday');
+            document.getElementById('ui-label-today').innerText = getTranslation('today');
+            document.getElementById('ui-label-12h').innerText = getTranslation('h12');
+            document.getElementById('ui-label-8d').innerText = getTranslation('d8');
 
+            ['zh', 'ja', 'en'].forEach(l => {
+                const btn = document.getElementById(`btn-${l}`);
+                btn.classList.toggle('bg-white', STATE.lang === l);
+                btn.classList.toggle('shadow-sm', STATE.lang === l);
+                btn.classList.toggle('text-blue-600', STATE.lang === l);
+                btn.classList.toggle('text-slate-400', STATE.lang !== l);
+            });
+        }
+
+        function renderLocationBar() {
+            const container = document.getElementById('location-scroll');
+            container.innerHTML = '';
+            STATE.locations.forEach(loc => {
+                const btn = document.createElement('button');
+                btn.className = `btn-action whitespace-nowrap ${STATE.activeId === loc.id ? 'active' : ''}`;
+                btn.innerText = getTranslation(loc.name);
+                btn.onclick = () => switchLocation(loc.id);
+                container.appendChild(btn);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.className = "btn-action border-dashed border-2 border-slate-200 text-slate-300";
+            addBtn.innerText = "+";
+            addBtn.onclick = () => toggleSearch(true);
+            container.appendChild(addBtn);
+        }
+
+        async function switchLocation(id) {
+            STATE.activeId = id;
+            const loc = STATE.locations.find(l => l.id === id);
+            if (id === 'gps') {
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                        initRefresh();
+                    },
+                    err => {
+                        STATE.coords = { lat: 24.83, lon: 121.01 };
+                        initRefresh();
+                    }
+                );
+            } else {
+                STATE.coords = { lat: loc.lat, lon: loc.lon };
+                initRefresh();
+            }
             renderLocationBar();
-            refreshWeather();
         }
 
-        function manualModel(m) {
-            STATE.model = m;
-            localStorage.setItem('zenith_model', m);
+        function initRefresh() {
+            document.getElementById('loader').style.display = 'flex';
             refreshWeather();
         }
 
         async function refreshWeather() {
-            const loader = document.getElementById('loader');
-            loader.style.opacity = '1';
-            loader.style.pointerEvents = 'auto';
-
             const { lat, lon } = STATE.coords;
-            const modelToUse = STATE.model === 'auto' ? getAutoModel(lat, lon) : STATE.model;
-            document.getElementById('final-model-badge').innerText = `ENGINE: ${modelToUse.toUpperCase()}`;
+            const selectedModel = STATE.model === 'auto' ? determineModel(lat, lon) : STATE.model;
+            document.getElementById('final-model-badge').innerText = selectedModel.split('_')[0];
 
-            // API 參數組合
-            const params = new URLSearchParams({
-                latitude: lat,
-                longitude: lon,
-                hourly: 'temperature_2m,apparent_temperature,precipitation,weathercode',
-                daily: 'weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max',
-                timezone: 'auto',
-                past_days: 1,
-                forecast_days: 14,
-                models: modelToUse
-            });
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max&timezone=auto&past_days=1&forecast_days=14&models=${selectedModel}`;
 
             try {
-                const data = await fetchRetry(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
-                
-                // 處理多模型資料結構差異
-                const h = data.hourly[modelToUse] || data.hourly;
-                const d = data.daily[modelToUse] || data.daily;
+                const data = await safeApiFetch(url);
+                const h = data.hourly;
+                const d = data.daily;
+                const nowHour = new Date().getHours();
+                const nowIdx = 24 + nowHour;
 
-                renderMainInfo(h, d);
-                renderVisuals(h, d);
-                render14DayList(d);
-                syncMap(lat, lon);
-                resolveCityName(lat, lon);
+                document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m[nowIdx] ?? 0);
+                document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature[nowIdx] ?? 0);
+                document.getElementById('curr-rain').innerText = (h.precipitation[nowIdx] ?? 0).toFixed(1);
+                document.getElementById('current-time').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+                document.getElementById('yes-emoji').innerText = getEmoji(d.weathercode[0]);
+                document.getElementById('yes-hilo').innerText = `${Math.round(d.temperature_2m_max[0] ?? 0)}/${Math.round(d.temperature_2m_min[0] ?? 0)}`;
+                document.getElementById('yes-wind').innerText = Math.round(d.windspeed_10m_max[0] ?? 0) + "km/h";
+
+                document.getElementById('today-emoji').innerText = getEmoji(d.weathercode[1]);
+                document.getElementById('today-hilo').innerText = `${Math.round(d.temperature_2m_max[1] ?? 0)}/${Math.round(d.temperature_2m_min[1] ?? 0)}`;
+                document.getElementById('today-rain-prob').innerText = Math.round(d.precipitation_probability_max[1] ?? 0);
+                
+                const diff = Math.round((d.temperature_2m_max[1] ?? 0) - (d.temperature_2m_max[0] ?? 0));
+                const diffEl = document.getElementById('today-diff');
+                diffEl.innerText = (diff >= 0 ? '+' : '') + diff + '°';
+                diffEl.className = `text-[9px] font-black px-1.5 py-0.5 rounded ${diff >= 0 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`;
+                document.getElementById('curr-wind').innerText = Math.round(d.windspeed_10m_max[1] / 1.5);
+
+                updateMap(lat, lon);
+                reverseGeocode(lat, lon);
+                renderHourlyChart(h, nowIdx);
+                renderDailyChart(d);
+                render14DList(d);
+
             } catch (err) {
-                console.error("Zenith Engine Error:", err);
+                console.error(err);
             } finally {
-                setTimeout(() => {
-                    loader.style.opacity = '0';
-                    loader.style.pointerEvents = 'none';
-                }, 600);
+                document.getElementById('loader').style.display = 'none';
             }
         }
 
-        function renderMainInfo(h, d) {
-            const now = new Date();
-            const hIdx = Math.max(0, h.time.findIndex(t => new Date(t) > now) - 1);
-
-            document.getElementById('main-temp').innerText = Math.round(safe(h.temperature_2m[hIdx]));
-            document.getElementById('main-feels').innerText = Math.round(safe(h.apparent_temperature[hIdx]));
-            document.getElementById('main-emoji').innerText = getWeatherEmoji(h.weathercode[hIdx]);
-            document.getElementById('main-rain').innerText = safe(h.precipitation[hIdx]).toFixed(1);
-            document.getElementById('main-wind').innerText = Math.round(safe(d.windspeed_10m_max[1]));
-            document.getElementById('display-time').innerText = now.toLocaleString(STATE.lang === 'zh' ? 'zh-TW' : (STATE.lang === 'ja' ? 'ja-JP' : 'en-US'));
-
-            // 昨日
-            document.getElementById('date-yes').innerText = d.time[0];
-            document.getElementById('yes-hilo').innerText = `${Math.round(safe(d.temperature_2m_max[0]))} / ${Math.round(safe(d.temperature_2m_min[0]))}`;
-            document.getElementById('yes-feels-hilo').innerText = `${Math.round(safe(d.apparent_temperature_max[0]))} / ${Math.round(safe(d.apparent_temperature_min[0]))}`;
-            document.getElementById('yes-rain').innerText = safe(d.precipitation_sum[0]).toFixed(1);
-            document.getElementById('yes-wind').innerText = Math.round(safe(d.windspeed_10m_max[0]));
-
-            // 今日
-            document.getElementById('today-hilo').innerText = `${Math.round(safe(d.temperature_2m_max[1]))} / ${Math.round(safe(d.temperature_2m_min[1]))}`;
-            document.getElementById('today-feels-hilo').innerText = `${Math.round(safe(d.apparent_temperature_max[1]))} / ${Math.round(safe(d.apparent_temperature_min[1]))}`;
-            document.getElementById('today-emoji').innerText = getWeatherEmoji(d.weathercode[1]);
-            document.getElementById('today-rain').innerText = safe(d.precipitation_sum[1]).toFixed(1);
-            document.getElementById('today-wind').innerText = Math.round(safe(d.windspeed_10m_max[1]));
-
-            // 氣溫變化
-            const diff = safe(d.temperature_2m_max[1]) - safe(d.temperature_2m_max[0]);
-            const diffTag = document.getElementById('temp-diff-tag');
-            diffTag.className = `text-[10px] font-black px-2 py-0.5 rounded ${diff >= 0 ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`;
-            diffTag.innerText = `${I18N[STATE.lang].diff_vs} ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}°`;
-        }
-
-        function renderVisuals(h, d) {
-            Chart.register(ChartDataLabels);
-            const now = new Date();
-            const start = Math.max(0, h.time.findIndex(t => new Date(t) > now) - 1);
-            const end = start + 12;
-
-            // 12小時趨勢
-            const hLabels = h.time.slice(start, end).map(t => new Date(t).getHours() + ":00");
-            const hTemp = h.temperature_2m.slice(start, end);
-            const hFeels = h.apparent_temperature.slice(start, end);
-            const hRain = h.precipitation.slice(start, end);
-            const hCodes = h.weathercode.slice(start, end);
-
-            if (STATE.charts.hourly) STATE.charts.hourly.destroy();
-            STATE.charts.hourly = new Chart(document.getElementById('hourly-chart'), {
-                data: {
-                    labels: hLabels,
-                    datasets: [
-                        { type: 'line', data: hTemp, borderColor: '#3b82f6', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#fff', datalabels: { align: 'top', color: '#fff', font: { weight: 'bold' } } },
-                        { type: 'line', data: hFeels, borderColor: 'rgba(59, 130, 246, 0.3)', borderWidth: 1, borderDash: [3, 3], tension: 0.4, pointRadius: 0, datalabels: { display: false } },
-                        { type: 'bar', data: hRain, backgroundColor: 'rgba(59, 130, 246, 0.15)', yAxisID: 'yRain', datalabels: { align: 'top', color: '#60a5fa', formatter: v => v > 0 ? v + 'm' : '' } }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, 
-                        tooltip: { enabled: true },
-                        datalabels: { 
-                            formatter: (v, ctx) => {
-                                if (ctx.datasetIndex === 0) return getWeatherEmoji(hCodes[ctx.dataIndex]) + "\n" + Math.round(v) + "°";
-                                return "";
-                            },
-                            font: { size: 10 }, textAlign: 'center'
-                        }
-                    },
-                    scales: { y: { display: false, suggestedMin: Math.min(...hTemp) - 2 }, yRain: { display: false, max: 20 }, x: { grid: { display: false }, ticks: { color: '#475569' } } }
-                }
-            });
-
-            // 8日趨勢
-            const dLabels = d.time.slice(0, 8).map((t, i) => i === 0 ? I18N[STATE.lang].yesterday : t.slice(5).replace('-', '/'));
-            const dMax = d.temperature_2m_max.slice(0, 8);
-            const dMin = d.temperature_2m_min.slice(0, 8);
-            const dRain = d.precipitation_sum.slice(0, 8);
-            const dCodes = d.weathercode.slice(0, 8);
-
-            if (STATE.charts.daily) STATE.charts.daily.destroy();
-            STATE.charts.daily = new Chart(document.getElementById('daily-chart'), {
-                data: {
-                    labels: dLabels,
-                    datasets: [
-                        { type: 'line', data: dMax, borderColor: '#fbbf24', borderWidth: 4, tension: 0.4, datalabels: { align: 'top', color: '#fff', font: { weight: '900' } } },
-                        { type: 'line', data: dMin, borderColor: '#3b82f6', borderWidth: 2, tension: 0.4, datalabels: { align: 'bottom', color: '#60a5fa' } },
-                        { type: 'bar', data: dRain, backgroundColor: 'rgba(59, 130, 246, 0.1)', yAxisID: 'yR', datalabels: { 
-                            align: 'top', color: '#fff', offset: -20, font: { size: 14 }, 
-                            formatter: (v, ctx) => getWeatherEmoji(dCodes[ctx.dataIndex]) + (v > 0 ? `\n${v.toFixed(1)}m` : '') 
-                        } }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { display: false, suggestedMin: Math.min(...dMin) - 5 }, yR: { display: false, max: 100 }, x: { grid: { display: false }, ticks: { color: '#64748b' } } }
-                }
-            });
-        }
-
-        function render14DayList(d) {
-            const list = document.getElementById('forecast-list');
-            list.innerHTML = '';
-            for (let i = 1; i < d.time.length; i++) {
-                const diff = safe(d.temperature_2m_max[i]) - safe(d.temperature_2m_max[i-1]);
-                const card = document.createElement('div');
-                card.className = "zenith-card p-5 flex flex-col sm:flex-row justify-between items-center gap-4 hover:bg-white/5 transition";
-                
-                const dateParts = d.time[i].split('-');
-                const dateLabel = `${dateParts[1]}/${dateParts[2]}`;
-
-                card.innerHTML = `
-                    <div class="flex items-center gap-6 w-full sm:w-auto">
-                        <div class="text-center min-w-[50px]">
-                            <div class="text-[9px] font-black opacity-30">${dateLabel}</div>
-                            <div class="text-3xl mt-1">${getWeatherEmoji(d.weathercode[i])}</div>
-                        </div>
-                        <div class="flex-grow">
-                            <div class="text-xl font-black">${Math.round(safe(d.temperature_2m_max[i]))}° <span class="text-xs opacity-30 font-bold">${Math.round(safe(d.temperature_2m_min[i]))}°</span></div>
-                            <div class="text-[9px] font-black ${diff >= 0 ? 'text-red-400' : 'text-blue-400'} uppercase mt-0.5">
-                                ${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}° ${I18N[STATE.lang].diff_vs}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex gap-6 items-center w-full sm:w-auto justify-between border-t sm:border-t-0 border-white/5 pt-3 sm:pt-0">
-                        <div class="text-right">
-                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].feels_label}</div>
-                            <div class="text-xs font-bold">${Math.round(safe(d.apparent_temperature_max[i]))}° / ${Math.round(safe(d.apparent_temperature_min[i]))}°</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].rain}</div>
-                            <div class="text-xs font-bold text-blue-400">${safe(d.precipitation_sum[i]).toFixed(1)} mm</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].wind}</div>
-                            <div class="text-xs font-bold text-emerald-500">${Math.round(safe(d.windspeed_10m_max[i]))} k</div>
-                        </div>
-                    </div>
-                `;
-                list.appendChild(card);
-            }
-        }
-
-        // 地圖處理
-        function syncMap(lat, lon) {
+        function updateMap(lat, lon) {
             if (!STATE.map) {
-                STATE.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 9);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(STATE.map);
+                STATE.map = L.map('mini-map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 9);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(STATE.map);
                 STATE.marker = L.marker([lat, lon]).addTo(STATE.map);
             } else {
                 STATE.map.setView([lat, lon], 9);
@@ -589,44 +434,166 @@
             setTimeout(() => STATE.map.invalidateSize(), 300);
         }
 
-        async function resolveCityName(lat, lon) {
+        async function reverseGeocode(lat, lon) {
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=${STATE.lang}`);
                 const data = await res.json();
-                const name = data.address.city || data.address.town || data.address.village || data.address.suburb || data.address.state || "Uncharted";
-                document.getElementById('display-city').innerText = name.toUpperCase();
-            } catch {
-                document.getElementById('display-city').innerText = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+                const name = data.address.city || data.address.town || data.address.village || data.address.suburb || "STATION";
+                document.getElementById('city-name').innerText = name.toUpperCase();
+            } catch (e) {
+                document.getElementById('city-name').innerText = "STATION";
             }
         }
 
-        // 導覽列與搜尋
-        function renderLocationBar() {
-            const bar = document.getElementById('location-bar');
-            bar.innerHTML = '';
-            STATE.locations.forEach(loc => {
-                const btn = document.createElement('button');
-                btn.className = `btn-pill whitespace-nowrap ${STATE.activeId === loc.id ? 'btn-active' : 'bg-white/5 hover:bg-white/10'}`;
-                btn.innerText = (I18N[STATE.lang][loc.name] || loc.name).toUpperCase();
-                btn.onclick = () => selectLocation(loc.id);
-                bar.appendChild(btn);
+        function renderHourlyChart(h, startIdx) {
+            const labels = [], temps = [], feels = [], rain = [];
+            const iconBox = document.getElementById('hourly-icons');
+            iconBox.innerHTML = '';
+
+            for (let i = 0; i < 12; i++) {
+                const idx = startIdx + i;
+                if (!h.time[idx]) break;
+                labels.push(new Date(h.time[idx]).getHours() + ":00");
+                temps.push(h.temperature_2m[idx] ?? 0);
+                feels.push(h.apparent_temperature[idx] ?? 0);
+                rain.push(h.precipitation[idx] ?? 0);
+                
+                const ic = document.createElement('span');
+                ic.className = "w-10 text-center text-sm";
+                ic.innerText = getEmoji(h.weathercode[idx]);
+                iconBox.appendChild(ic);
+            }
+
+            if (STATE.charts.hourly) STATE.charts.hourly.destroy();
+            STATE.charts.hourly = new Chart(document.getElementById('chart-hourly'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Temp', data: temps, borderColor: '#0066FF', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 4, pointBackgroundColor: 'white' },
+                        { label: 'Feel', data: feels, borderColor: '#C7C7CC', borderWidth: 2, borderDash: [4,4], tension: 0.4, yAxisID: 'y', pointRadius: 0 },
+                        { label: 'Rain', data: rain, type: 'bar', backgroundColor: 'rgba(0, 102, 255, 0.2)', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    layout: { padding: { top: 25 } },
+                    plugins: { 
+                        legend: { display: false },
+                        datalabels: {
+                            display: (context) => context.dataset.type === 'bar' ? (context.dataset.data[context.dataIndex] > 0) : true,
+                            align: 'top',
+                            offset: 4,
+                            font: { size: 10, weight: 'bold' },
+                            color: (context) => context.dataset.type === 'bar' ? '#0066FF' : '#1C1C1E',
+                            formatter: (v, c) => c.dataset.type === 'bar' ? v.toFixed(1) : Math.round(v) + '°'
+                        }
+                    },
+                    scales: { 
+                        y: { display: false, grace: '20%' }, 
+                        y1: { display: false, position: 'right', max: Math.max(...rain, 5) * 1.5 }, 
+                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } } 
+                    }
+                }
             });
         }
 
-        function selectLocation(id) {
-            STATE.activeId = id;
-            const loc = STATE.locations.find(l => l.id === id);
-            if (id === 'gps') {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                    refreshWeather();
-                    renderLocationBar();
-                }, () => selectLocation('taipei'));
-            } else {
-                STATE.coords = { lat: loc.lat, lon: loc.lon };
-                refreshWeather();
-                renderLocationBar();
+        function renderDailyChart(d) {
+            const labels = [], maxs = [], mins = [], rain = [];
+            const iconBox = document.getElementById('daily-icons');
+            iconBox.innerHTML = '';
+
+            for (let i = 0; i < 8; i++) {
+                if (!d.time[i]) break;
+                labels.push(d.time[i].split('-').slice(1).join('/'));
+                maxs.push(d.temperature_2m_max[i] ?? 0);
+                mins.push(d.temperature_2m_min[i] ?? 0);
+                rain.push(d.precipitation_sum[i] ?? 0);
+
+                const ic = document.createElement('span');
+                ic.className = "w-10 text-center text-sm";
+                ic.innerText = getEmoji(d.weathercode[i]);
+                iconBox.appendChild(ic);
             }
+
+            if (STATE.charts.daily) STATE.charts.daily.destroy();
+            STATE.charts.daily = new Chart(document.getElementById('chart-daily'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.3, pointRadius: 4, pointBackgroundColor: 'white' },
+                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.3, pointRadius: 4, pointBackgroundColor: 'white' },
+                        { label: 'Rain', data: rain, type: 'bar', backgroundColor: 'rgba(0, 122, 255, 0.15)', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    layout: { padding: { top: 25 } },
+                    plugins: { 
+                        legend: { display: false },
+                        datalabels: {
+                            display: (context) => context.dataset.type === 'bar' ? (context.dataset.data[context.dataIndex] > 0) : true,
+                            align: (context) => context.dataset.label === 'Min' ? 'bottom' : 'top',
+                            offset: 6,
+                            font: { size: 10, weight: 'bold' },
+                            color: (context) => {
+                                if (context.dataset.type === 'bar') return '#0066FF';
+                                return context.dataset.label === 'Max' ? '#FF3B30' : '#007AFF';
+                            },
+                            formatter: (v, c) => c.dataset.type === 'bar' ? v.toFixed(1) : Math.round(v) + '°'
+                        }
+                    },
+                    scales: { 
+                        y: { display: false, grace: '20%' }, 
+                        y1: { display: false, position: 'right', max: Math.max(...rain, 10) * 1.5 },
+                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } } 
+                    }
+                }
+            });
+        }
+
+        function render14DList(d) {
+            const container = document.getElementById('list-14d');
+            container.innerHTML = '';
+            for (let i = 1; i < 15; i++) {
+                if (!d.time[i]) break;
+                const max = d.temperature_2m_max[i] ?? 0;
+                const min = d.temperature_2m_min[i] ?? 0;
+                const rain = d.precipitation_sum[i] ?? 0;
+                const wind = d.windspeed_10m_max[i] ?? 0;
+                const diff = Math.round(max - (d.temperature_2m_max[i-1] ?? max));
+                const dateObj = new Date(d.time[i]);
+                const dateStr = `${dateObj.getMonth()+1}/${dateObj.getDate()}`;
+                const dayStr = dateObj.toLocaleDateString(STATE.lang === 'zh' ? 'zh-TW' : (STATE.lang === 'ja' ? 'ja-JP' : 'en-US'), { weekday: 'short' });
+
+                const card = document.createElement('div');
+                card.className = "glass-card p-4 flex items-center justify-between";
+                card.innerHTML = `
+                    <div class="w-14">
+                        <div class="text-[10px] font-black text-slate-400 leading-none">${dateStr}</div>
+                        <div class="text-xs font-bold text-slate-800">${dayStr}</div>
+                    </div>
+                    <div class="text-3xl mx-2">${getEmoji(d.weathercode[i])}</div>
+                    <div class="flex-grow flex flex-col items-center">
+                        <div class="text-sm font-black text-slate-800">${Math.round(max)}° / ${Math.round(min)}°</div>
+                        <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">TEMP DIFF <span class="${diff >= 0 ? 'text-red-500' : 'text-blue-500'}">${diff >= 0 ? '+' : ''}${diff}°</span></div>
+                    </div>
+                    <div class="text-right w-16">
+                        <div class="text-[10px] font-black text-blue-500">${rain.toFixed(1)}mm</div>
+                        <div class="text-[9px] font-bold text-slate-300">${Math.round(wind)}km/h</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        function setLang(l) {
+            STATE.lang = l;
+            localStorage.setItem('zenith_lang', l);
+            updateStaticText();
+            renderLocationBar();
+            refreshWeather();
         }
 
         function toggleSearch(show) {
@@ -637,34 +604,40 @@
         async function performSearch() {
             const q = document.getElementById('search-input').value;
             if (!q) return;
+            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=${STATE.lang}`);
+            const data = await res.json();
             const results = document.getElementById('search-results');
-            results.innerHTML = `<div class="text-center opacity-30 py-4">${I18N[STATE.lang].searching}</div>`;
-
-            try {
-                const data = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=${STATE.lang}`).then(r => r.json());
-                results.innerHTML = '';
-                if (data.length === 0) {
-                    results.innerHTML = `<div class="text-center opacity-30 py-4">${I18N[STATE.lang].no_results}</div>`;
-                    return;
-                }
-                data.forEach(item => {
-                    const row = document.createElement('div');
-                    row.className = "p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-blue-600/20 border border-white/5 transition";
-                    const main = item.display_name.split(',')[0];
-                    row.innerHTML = `<div class="font-black text-sm">${main}</div><div class="text-[10px] opacity-30 truncate">${item.display_name}</div>`;
-                    row.onclick = () => {
-                        const newLoc = { id: 'c'+Date.now(), name: main, lat: parseFloat(item.lat), lon: parseFloat(item.lon) };
-                        STATE.locations.push(newLoc);
-                        localStorage.setItem('zenith_locs', JSON.stringify(STATE.locations));
-                        toggleSearch(false);
-                        selectLocation(newLoc.id);
-                    };
-                    results.appendChild(row);
-                });
-            } catch (e) { results.innerHTML = '<div class="text-red-400 text-center py-4">Search Error</div>'; }
+            results.innerHTML = '';
+            (data.results || []).forEach(r => {
+                const div = document.createElement('div');
+                div.className = "glass-card p-5 flex justify-between items-center cursor-pointer active:scale-95 transition";
+                div.innerHTML = `
+                    <div>
+                        <div class="font-black text-lg">${r.name}</div>
+                        <div class="text-xs text-slate-400 font-bold">${r.admin1 || ''}, ${r.country}</div>
+                    </div>
+                    <div class="text-blue-500 font-black text-xs uppercase">Add</div>
+                `;
+                div.onclick = () => {
+                    const newLoc = { id: 'loc_' + Date.now(), name: r.name, lat: r.latitude, lon: r.longitude };
+                    STATE.locations.push(newLoc);
+                    localStorage.setItem('zenith_locs_v5', JSON.stringify(STATE.locations));
+                    toggleSearch(false);
+                    switchLocation(newLoc.id);
+                };
+                results.appendChild(div);
+            });
         }
 
-        window.onload = () => changeLang(STATE.lang);
+        function manualModelChange(m) {
+            STATE.model = m;
+            initRefresh();
+        }
+
+        window.onload = () => {
+            updateStaticText();
+            switchLocation(STATE.activeId);
+        };
     </script>
 </body>
 </html>
