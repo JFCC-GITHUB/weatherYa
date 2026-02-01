@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Zenith 5.0 - Prism Pro</title>
     
-    <!-- External Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
@@ -17,19 +16,17 @@
         
         :root {
             --accent-blue: #0066FF;
-            --accent-red: #FF3B30;
-            --accent-green: #34C759;
             --bg-pure: #FFFFFF;
-            --card-bg: #F2F2F7;
         }
 
         * {
             -webkit-tap-highlight-color: transparent;
             font-family: "Inter", "Noto Sans TC", "Noto Sans JP", sans-serif;
+            box-sizing: border-box;
         }
 
         body {
-            background-color: var(--bg-pure);
+            background-color: #F8F9FB;
             color: #1C1C1E;
             margin: 0;
             padding-bottom: env(safe-area-inset-bottom);
@@ -40,17 +37,17 @@
         .glass-card {
             background: #FFFFFF;
             border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0, 0, 0, 0.04);
         }
 
         .btn-action {
-            padding: 8px 16px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
             transition: all 0.2s;
-            background: #F2F2F7;
+            background: #EEE;
             color: #8E8E93;
         }
 
@@ -60,9 +57,9 @@
         }
 
         #mini-map {
-            width: 100px;
-            height: 100px;
-            border-radius: 18px;
+            width: 90px;
+            height: 90px;
+            border-radius: 16px;
             overflow: hidden;
             flex-shrink: 0;
             z-index: 10;
@@ -73,178 +70,200 @@
             background: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
+
+        .data-label {
+            font-size: 10px;
+            font-weight: 900;
+            color: #A1A1AA;
+            text-transform: uppercase;
+        }
+
+        .data-value {
+            font-size: 14px;
+            font-weight: 900;
+            color: #3F3F46;
+        }
     </style>
 </head>
 <body class="overflow-x-hidden">
 
-    <!-- Loading Screen -->
     <div id="loader" class="loader">
-        <div class="w-12 h-12 border-[5px] border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
-        <p class="mt-4 text-xs font-black tracking-widest text-slate-400 uppercase">Zenith 5.0 - Prism Pro</p>
+        <div class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
     </div>
 
     <!-- Search UI -->
-    <div id="search-modal" class="fixed inset-0 z-[5000] hidden bg-white p-6 pt-12 overflow-y-auto">
+    <div id="search-modal" class="fixed inset-0 z-[5000] hidden bg-white p-5 pt-12 overflow-y-auto">
         <div class="max-w-md mx-auto">
             <div class="flex items-center justify-between mb-8">
-                <h2 id="ui-search-title" class="text-3xl font-black">---</h2>
+                <h2 id="ui-search-title" class="text-2xl font-black">---</h2>
                 <button onclick="toggleSearch(false)" class="text-slate-400 font-bold" id="ui-cancel">---</button>
             </div>
-            <div class="flex gap-2 mb-8">
-                <input type="text" id="search-input" class="flex-grow bg-slate-100 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="...">
-                <button onclick="performSearch()" class="bg-black text-white px-6 py-4 rounded-2xl font-black">Search</button>
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="search-input" class="flex-grow bg-slate-100 rounded-xl px-4 py-3 outline-none font-bold" placeholder="...">
+                <button onclick="performSearch()" id="ui-search-btn" class="bg-black text-white px-5 py-3 rounded-xl font-black text-sm">---</button>
             </div>
-            <div id="search-results" class="space-y-4"></div>
+            <div id="search-results" class="space-y-3"></div>
         </div>
     </div>
 
     <!-- Main Content -->
-    <main class="max-w-md mx-auto px-5 py-8 space-y-6">
+    <main class="max-w-md mx-auto px-4 py-6 space-y-5">
         
-        <!-- Header: Control Panel -->
-        <header class="space-y-6">
-            <div class="flex justify-between items-center">
-                <div class="flex bg-slate-100 p-1 rounded-xl">
-                    <button onclick="setLang('zh')" id="btn-zh" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">中</button>
-                    <button onclick="setLang('ja')" id="btn-ja" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">日</button>
-                    <button onclick="setLang('en')" id="btn-en" class="px-3 py-1.5 rounded-lg text-xs font-black transition-all">EN</button>
-                </div>
-                <div class="text-right">
-                    <div id="final-model-badge" class="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-black uppercase">---</div>
-                    <select id="model-select" onchange="manualModelChange(this.value)" class="block mt-1 text-[10px] font-bold text-slate-400 bg-transparent border-none outline-none text-right w-full">
-                        <option value="auto">AUTO</option>
-                        <option value="jma_seamless">JMA</option>
-                        <option value="kma_local">KMA</option>
-                        <option value="ecmwf_ifs025">ECMWF</option>
-                        <option value="gfs_global">GFS</option>
-                    </select>
-                </div>
+        <header class="flex justify-between items-center gap-2">
+            <div class="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                <button onclick="setLang('zh')" id="btn-zh" class="px-3 py-1 rounded-lg text-xs font-black transition-all">繁</button>
+                <button onclick="setLang('ja')" id="btn-ja" class="px-3 py-1 rounded-lg text-xs font-black transition-all">日</button>
+                <button onclick="setLang('en')" id="btn-en" class="px-3 py-1 rounded-lg text-xs font-black transition-all">EN</button>
             </div>
-
-            <div id="location-scroll" class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                <!-- Location Pills Inject Here -->
+            
+            <div class="flex bg-slate-100 p-1 rounded-xl shrink-0">
+                <select id="model-select" onchange="manualModelChange(this.value)" class="bg-transparent border-none outline-none text-[10px] font-black px-2 cursor-pointer uppercase">
+                    <option value="auto">Auto</option>
+                    <option value="jma_seamless">JMA</option>
+                    <option value="ecmwf_ifs025">ECMWF</option>
+                    <option value="gfs_global">GFS</option>
+                </select>
             </div>
         </header>
 
-        <!-- Current Weather & Mini Map -->
-        <section class="glass-card p-6">
-            <div class="flex justify-between items-start gap-4">
+        <div id="location-scroll" class="flex gap-2 overflow-x-auto no-scrollbar py-1"></div>
+
+        <!-- Current Status -->
+        <section class="glass-card p-5">
+            <div class="flex justify-between items-start gap-3">
                 <div class="flex-grow min-w-0">
                     <div class="flex items-center gap-2 mb-1">
                         <span id="ui-now-tag" class="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase">---</span>
                         <span id="current-time" class="text-[10px] font-bold text-slate-400">--:--</span>
                     </div>
-                    <h1 id="city-name" class="text-3xl font-black tracking-tight text-slate-900 truncate">---</h1>
-                    <div class="flex items-baseline gap-1 mt-2">
-                        <span id="curr-temp" class="text-6xl font-black tracking-tighter">--</span>
-                        <span class="text-xl font-black text-blue-500">°C</span>
+                    <h1 id="city-name" class="text-xl font-black text-slate-900 truncate uppercase">---</h1>
+                    <div class="flex items-baseline gap-1 mt-1">
+                        <span id="curr-temp" class="text-5xl font-black tracking-tighter">--</span>
+                        <span class="text-lg font-black text-blue-500">°C</span>
                     </div>
                 </div>
                 <div id="mini-map"></div>
             </div>
-
-            <div class="grid grid-cols-3 gap-2 mt-8">
-                <div class="bg-slate-50 p-3 rounded-2xl text-center">
-                    <div id="ui-label-feels" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
-                    <div class="text-sm font-black text-slate-800"><span id="curr-feels">--</span>°C</div>
+            
+            <div class="flex justify-between mt-5 pt-5 border-t border-slate-50">
+                <div class="text-center">
+                    <div id="ui-label-feels" class="data-label">---</div>
+                    <div class="data-value"><span id="curr-feels">--</span>°C</div>
                 </div>
-                <div class="bg-slate-50 p-3 rounded-2xl text-center">
-                    <div id="ui-label-rain" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
-                    <div class="text-sm font-black text-blue-600"><span id="curr-rain">--</span>mm</div>
+                <div class="text-center">
+                    <div id="ui-label-rain" class="data-label">---</div>
+                    <div class="data-value text-blue-600"><span id="curr-rain">--</span><span class="text-[9px] ml-0.5">mm</span></div>
                 </div>
-                <div class="bg-slate-50 p-3 rounded-2xl text-center">
-                    <div id="ui-label-wind" class="text-[9px] font-bold text-slate-400 uppercase">---</div>
-                    <div class="text-sm font-black text-slate-800"><span id="curr-wind">--</span><span class="text-[8px] ml-0.5">km/h</span></div>
+                <div class="text-center">
+                    <div id="ui-label-wind" class="data-label">---</div>
+                    <div class="data-value"><span id="curr-wind">--</span><span class="text-[9px] ml-0.5">km/h</span></div>
                 </div>
             </div>
         </section>
 
-        <!-- Comparison: Yesterday & Today -->
-        <div class="grid grid-cols-2 gap-4">
-            <div class="glass-card p-4">
-                <div id="ui-label-yesterday" class="text-[10px] font-black text-slate-400 mb-3 uppercase">---</div>
-                <div class="flex justify-between items-center">
-                    <span id="yes-emoji" class="text-3xl">--</span>
-                    <div class="text-right">
-                        <div class="text-sm font-black text-slate-700"><span id="yes-hilo">--/--</span>°</div>
-                        <div class="text-[9px] font-bold text-slate-400">💨 <span id="yes-wind">--</span></div>
+        <!-- Dynamic Detailed Cards -->
+        <div class="grid grid-cols-1 gap-4">
+            <!-- Yesterday -->
+            <div class="glass-card p-4 bg-slate-50/40">
+                <div class="flex justify-between items-center mb-3">
+                    <div id="ui-label-yesterday" class="text-[11px] font-black text-slate-400 uppercase">---</div>
+                    <div id="yes-date" class="text-[10px] font-bold text-slate-300 tracking-wider">--/--</div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="yes-emoji" class="text-4xl">--</div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 flex-grow">
+                        <div>
+                            <div class="data-label">HI/LO</div>
+                            <div class="data-value" id="yes-hilo">--/--°C</div>
+                        </div>
+                        <div>
+                            <div id="ui-label-subfeels" class="data-label">---</div>
+                            <div class="data-value" id="yes-feels-hilo">--/--°C</div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="glass-card p-4 border-l-4 border-blue-500">
+
+            <!-- Today -->
+            <div class="glass-card p-4 border-l-[6px] border-blue-500">
                 <div class="flex justify-between items-center mb-3">
-                    <div id="ui-label-today" class="text-[10px] font-black text-blue-500 uppercase">---</div>
-                    <div id="today-diff" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">--</div>
+                    <div id="ui-label-today" class="text-[11px] font-black text-blue-500 uppercase">---</div>
+                    <div id="today-diff-badge" class="text-[10px] font-black px-2 py-0.5 rounded bg-blue-50 text-blue-600">--</div>
                 </div>
-                <div class="flex justify-between items-center">
-                    <span id="today-emoji" class="text-3xl">--</span>
-                    <div class="text-right">
-                        <div class="text-sm font-black text-slate-700"><span id="today-hilo">--/--</span>°</div>
-                        <div class="text-[9px] font-bold text-blue-500">💧 <span id="today-rain-prob">--</span>%</div>
+                <div class="flex items-center gap-4">
+                    <div id="today-emoji" class="text-4xl">--</div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 flex-grow">
+                        <div>
+                            <div class="data-label">HI/LO</div>
+                            <div class="data-value" id="today-hilo">--/--°C</div>
+                        </div>
+                        <div>
+                            <div id="ui-label-subfeels2" class="data-label">---</div>
+                            <div class="data-value" id="today-feels-hilo">--/--°C</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Hourly Forecast (12H) -->
+        <!-- Charts -->
         <section class="glass-card p-5 overflow-hidden">
             <h3 id="ui-label-12h" class="text-xs font-black text-slate-400 mb-6 uppercase">---</h3>
             <div class="overflow-x-auto no-scrollbar">
                 <div id="hourly-icons" class="flex justify-between mb-1 px-4 min-w-[650px]"></div>
-                <div class="h-52 min-w-[650px]">
+                <div class="h-44 min-w-[650px]">
                     <canvas id="chart-hourly"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- 8 Day Trend -->
         <section class="glass-card p-5 overflow-hidden">
             <h3 id="ui-label-8d" class="text-xs font-black text-slate-400 mb-6 uppercase">---</h3>
             <div class="overflow-x-auto no-scrollbar">
                 <div id="daily-icons" class="flex justify-between mb-1 px-4 min-w-[550px]"></div>
-                <div class="h-52 min-w-[550px]">
+                <div class="h-44 min-w-[550px]">
                     <canvas id="chart-daily"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- 14 Day Detailed List -->
-        <section id="list-14d" class="space-y-3 pb-8"></section>
+        <section id="list-14d" class="space-y-2 pb-8"></section>
 
     </main>
 
     <script>
-        // --- I18N Configuration ---
         const I18N = {
             zh: {
-                search_title: "搜尋地點", cancel: "取消", now: "現在", feels: "體感", rain: "降雨", wind: "風速",
-                yesterday: "昨日回顧", today: "今日預報", h12: "12小時預報", d8: "8日氣溫趨勢",
-                current_loc: "目前位置", search_placeholder: "城市、行政區...",
+                search_title: "搜尋地點", search_btn: "搜尋", cancel: "取消", now: "現在", feels: "體感溫度", rain: "降雨量", wind: "風速",
+                yesterday: "昨日回顧", today: "今日預報", h12: "12小時趨勢", d8: "8日氣溫預測",
+                current_loc: "目前位置", search_placeholder: "輸入城市名稱...",
+                temp_diff: "溫差", add: "新增", diff_format: "與昨日最高溫差 ",
                 cities: { zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
             },
             en: {
-                search_title: "Search Location", cancel: "Cancel", now: "NOW", feels: "FEELS", rain: "RAIN", wind: "WIND",
-                yesterday: "YESTERDAY", today: "TODAY", h12: "12-HOUR TREND", d8: "8-DAY TREND",
-                current_loc: "MY LOCATION", search_placeholder: "City, area...",
+                search_title: "Search", search_btn: "Go", cancel: "Cancel", now: "NOW", feels: "Feels Like", rain: "Rainfall", wind: "Wind",
+                yesterday: "Yesterday", today: "Today", h12: "12-Hour Trend", d8: "8-Day Forecast",
+                current_loc: "My Location", search_placeholder: "Enter city name...",
+                temp_diff: "Diff", add: "Add", diff_format: "Diff vs Yesterday ",
                 cities: { zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka" }
             },
             ja: {
-                search_title: "場所を検索", cancel: "戻る", now: "現在", feels: "体感", rain: "降水", wind: "風速",
-                yesterday: "昨日", today: "今日", h12: "12時間予報", d8: "8日間推移",
+                search_title: "場所を検索", search_btn: "検索", cancel: "戻る", now: "現在", feels: "体感温度", rain: "降水量", wind: "風速",
+                yesterday: "昨日の記録", today: "今日の予報", h12: "12時間予報", d8: "8日間気温推移",
                 current_loc: "現在地", search_placeholder: "都市名を入力...",
-                cities: { zhubei: "竹北", taichung: "台中国", taipei: "台北", osaka: "大阪" }
+                temp_diff: "気温差", add: "追加", diff_format: "昨日比 ",
+                cities: { zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
             }
         };
 
         const STATE = {
-            lang: localStorage.getItem('zenith_lang') || 'zh',
+            lang: localStorage.getItem('zenith_lang_v5') || 'zh',
             activeId: 'gps',
+            model: localStorage.getItem('zenith_model_v5') || 'auto',
             coords: { lat: 24.83, lon: 121.01 },
-            model: 'auto',
             locations: JSON.parse(localStorage.getItem('zenith_locs_v5')) || [
                 { id: 'gps', name: 'current_loc', lat: null, lon: null },
                 { id: 'zhubei', name: 'cities.zhubei', lat: 24.83, lon: 121.01 },
-                { id: 'taichung', name: 'cities.taichung', lat: 24.23, lon: 120.67 },
                 { id: 'taipei', name: 'cities.taipei', lat: 25.03, lon: 121.56 },
                 { id: 'osaka', name: 'cities.osaka', lat: 34.69, lon: 135.50 }
             ],
@@ -253,211 +272,104 @@
             marker: null
         };
 
-        // Register Chart.js DataLabels plugin
         Chart.register(ChartDataLabels);
 
-        function getTranslation(key) {
+        function t(key) {
             const keys = key.split('.');
             let val = I18N[STATE.lang];
             keys.forEach(k => val = val ? val[k] : key);
             return val || key;
         }
 
-        async function safeApiFetch(url, retries = 5) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error("Fetch Failed");
-                    return await res.json();
-                } catch (e) {
-                    if (i === retries - 1) throw e;
-                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
-                }
-            }
-        }
-
-        function determineModel(lat, lon) {
-            if (lat >= 21.8 && lat <= 25.5 && lon >= 119.5 && lon <= 122.5) return 'jma_seamless';
-            if (lat >= 24 && lat <= 46 && lon >= 123 && lon <= 149) return 'jma_seamless';
-            if (lat >= 33 && lat <= 39 && lon >= 124 && lon <= 130) return 'kma_local';
-            if (lat >= 35 && lat <= 70 && lon >= -10 && lon <= 40) return 'ecmwf_ifs04';
-            if (lat >= 25 && lat <= 50 && lon >= -125 && lon <= -65) return 'gfs_global';
-            
-            const centers = [
-                { id: 'jma_seamless', lat: 35, lon: 139 },
-                { id: 'kma_local', lat: 37, lon: 127 },
-                { id: 'ecmwf_ifs04', lat: 48, lon: 2 },
-                { id: 'gfs_global', lat: 40, lon: -100 }
-            ];
-            let nearest = centers[0];
-            let minDist = Infinity;
-            centers.forEach(c => {
-                const d = Math.sqrt(Math.pow(lat - c.lat, 2) + Math.pow(lon - c.lon, 2));
-                if (d < minDist) { minDist = d; nearest = c; }
-            });
-            return nearest.id;
-        }
-
         function getEmoji(code) {
-            if (code === undefined || code === null) return '❓';
             if (code <= 1) return '☀️';
             if (code <= 3) return '🌤️';
             if (code <= 48) return '🌫️';
-            if (code <= 55) return '🌦️';
             if (code <= 67) return '🌧️';
             if (code <= 77) return '❄️';
-            if (code <= 82) return '🌧️';
             if (code <= 99) return '⛈️';
             return '☁️';
         }
 
-        function updateStaticText() {
-            document.getElementById('ui-search-title').innerText = getTranslation('search_title');
-            document.getElementById('ui-cancel').innerText = getTranslation('cancel');
-            document.getElementById('search-input').placeholder = getTranslation('search_placeholder');
-            document.getElementById('ui-now-tag').innerText = getTranslation('now');
-            document.getElementById('ui-label-feels').innerText = getTranslation('feels');
-            document.getElementById('ui-label-rain').innerText = getTranslation('rain');
-            document.getElementById('ui-label-wind').innerText = getTranslation('wind');
-            document.getElementById('ui-label-yesterday').innerText = getTranslation('yesterday');
-            document.getElementById('ui-label-today').innerText = getTranslation('today');
-            document.getElementById('ui-label-12h').innerText = getTranslation('h12');
-            document.getElementById('ui-label-8d').innerText = getTranslation('d8');
+        function updateUIStrings() {
+            document.getElementById('ui-search-title').innerText = t('search_title');
+            document.getElementById('ui-search-btn').innerText = t('search_btn');
+            document.getElementById('ui-cancel').innerText = t('cancel');
+            document.getElementById('search-input').placeholder = t('search_placeholder');
+            document.getElementById('ui-now-tag').innerText = t('now');
+            document.getElementById('ui-label-feels').innerText = t('feels');
+            document.getElementById('ui-label-rain').innerText = t('rain');
+            document.getElementById('ui-label-wind').innerText = t('wind');
+            document.getElementById('ui-label-yesterday').innerText = t('yesterday');
+            document.getElementById('ui-label-today').innerText = t('today');
+            document.getElementById('ui-label-subfeels').innerText = t('feels');
+            document.getElementById('ui-label-subfeels2').innerText = t('feels');
+            document.getElementById('ui-label-12h').innerText = t('h12');
+            document.getElementById('ui-label-8d').innerText = t('d8');
+            document.getElementById('model-select').value = STATE.model;
 
             ['zh', 'ja', 'en'].forEach(l => {
                 const btn = document.getElementById(`btn-${l}`);
-                btn.classList.toggle('bg-white', STATE.lang === l);
-                btn.classList.toggle('shadow-sm', STATE.lang === l);
-                btn.classList.toggle('text-blue-600', STATE.lang === l);
-                btn.classList.toggle('text-slate-400', STATE.lang !== l);
+                btn.className = `px-3 py-1 rounded-lg text-xs font-black transition-all ${STATE.lang === l ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`;
             });
-        }
-
-        function renderLocationBar() {
-            const container = document.getElementById('location-scroll');
-            container.innerHTML = '';
-            STATE.locations.forEach(loc => {
-                const btn = document.createElement('button');
-                btn.className = `btn-action whitespace-nowrap ${STATE.activeId === loc.id ? 'active' : ''}`;
-                btn.innerText = getTranslation(loc.name);
-                btn.onclick = () => switchLocation(loc.id);
-                container.appendChild(btn);
-            });
-            const addBtn = document.createElement('button');
-            addBtn.className = "btn-action border-dashed border-2 border-slate-200 text-slate-300";
-            addBtn.innerText = "+";
-            addBtn.onclick = () => toggleSearch(true);
-            container.appendChild(addBtn);
-        }
-
-        async function switchLocation(id) {
-            STATE.activeId = id;
-            const loc = STATE.locations.find(l => l.id === id);
-            if (id === 'gps') {
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                        initRefresh();
-                    },
-                    err => {
-                        STATE.coords = { lat: 24.83, lon: 121.01 };
-                        initRefresh();
-                    }
-                );
-            } else {
-                STATE.coords = { lat: loc.lat, lon: loc.lon };
-                initRefresh();
-            }
-            renderLocationBar();
-        }
-
-        function initRefresh() {
-            document.getElementById('loader').style.display = 'flex';
-            refreshWeather();
         }
 
         async function refreshWeather() {
             const { lat, lon } = STATE.coords;
-            const selectedModel = STATE.model === 'auto' ? determineModel(lat, lon) : STATE.model;
-            document.getElementById('final-model-badge').innerText = selectedModel.split('_')[0];
-
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max&timezone=auto&past_days=1&forecast_days=14&models=${selectedModel}`;
+            const modelParam = STATE.model === 'auto' ? '' : `&models=${STATE.model}`;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max&timezone=auto&past_days=1&forecast_days=14${modelParam}`;
 
             try {
-                const data = await safeApiFetch(url);
+                const res = await fetch(url);
+                const data = await res.json();
                 const h = data.hourly;
                 const d = data.daily;
-                const nowHour = new Date().getHours();
-                const nowIdx = 24 + nowHour;
+                const nowIdx = 24 + new Date().getHours();
 
-                document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m[nowIdx] ?? 0);
-                document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature[nowIdx] ?? 0);
-                document.getElementById('curr-rain').innerText = (h.precipitation[nowIdx] ?? 0).toFixed(1);
+                // Current
+                document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m[nowIdx]);
+                document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature[nowIdx]);
+                document.getElementById('curr-rain').innerText = (h.precipitation[nowIdx]).toFixed(1);
+                document.getElementById('curr-wind').innerText = Math.round(h.windspeed_10m[nowIdx]);
                 document.getElementById('current-time').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
+                // Yesterday Card
+                document.getElementById('yes-date').innerText = d.time[0].split('-').slice(1).join('/');
                 document.getElementById('yes-emoji').innerText = getEmoji(d.weathercode[0]);
-                document.getElementById('yes-hilo').innerText = `${Math.round(d.temperature_2m_max[0] ?? 0)}/${Math.round(d.temperature_2m_min[0] ?? 0)}`;
-                document.getElementById('yes-wind').innerText = Math.round(d.windspeed_10m_max[0] ?? 0) + "km/h";
+                document.getElementById('yes-hilo').innerText = `${Math.round(d.temperature_2m_max[0])}/${Math.round(d.temperature_2m_min[0])}°C`;
+                document.getElementById('yes-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[0])}/${Math.round(d.apparent_temperature_min[0])}°C`;
 
+                // Today Card
                 document.getElementById('today-emoji').innerText = getEmoji(d.weathercode[1]);
-                document.getElementById('today-hilo').innerText = `${Math.round(d.temperature_2m_max[1] ?? 0)}/${Math.round(d.temperature_2m_min[1] ?? 0)}`;
-                document.getElementById('today-rain-prob').innerText = Math.round(d.precipitation_probability_max[1] ?? 0);
-                
-                const diff = Math.round((d.temperature_2m_max[1] ?? 0) - (d.temperature_2m_max[0] ?? 0));
-                const diffEl = document.getElementById('today-diff');
-                diffEl.innerText = (diff >= 0 ? '+' : '') + diff + '°';
-                diffEl.className = `text-[9px] font-black px-1.5 py-0.5 rounded ${diff >= 0 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`;
-                document.getElementById('curr-wind').innerText = Math.round(d.windspeed_10m_max[1] / 1.5);
+                document.getElementById('today-hilo').innerText = `${Math.round(d.temperature_2m_max[1])}/${Math.round(d.temperature_2m_min[1])}°C`;
+                document.getElementById('today-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[1])}/${Math.round(d.apparent_temperature_min[1])}°C`;
+
+                const diff = (d.temperature_2m_max[1] - d.temperature_2m_max[0]).toFixed(1);
+                const diffEl = document.getElementById('today-diff-badge');
+                diffEl.innerText = `${t('diff_format')}${diff > 0 ? '+' : ''}${diff}°C`;
+                diffEl.className = `text-[10px] font-black px-2 py-0.5 rounded ${diff > 0 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`;
 
                 updateMap(lat, lon);
-                reverseGeocode(lat, lon);
                 renderHourlyChart(h, nowIdx);
                 renderDailyChart(d);
                 render14DList(d);
+                reverseGeocode(lat, lon);
 
-            } catch (err) {
-                console.error(err);
-            } finally {
-                document.getElementById('loader').style.display = 'none';
-            }
-        }
-
-        function updateMap(lat, lon) {
-            if (!STATE.map) {
-                STATE.map = L.map('mini-map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 9);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(STATE.map);
-                STATE.marker = L.marker([lat, lon]).addTo(STATE.map);
-            } else {
-                STATE.map.setView([lat, lon], 9);
-                STATE.marker.setLatLng([lat, lon]);
-            }
-            setTimeout(() => STATE.map.invalidateSize(), 300);
-        }
-
-        async function reverseGeocode(lat, lon) {
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=${STATE.lang}`);
-                const data = await res.json();
-                const name = data.address.city || data.address.town || data.address.village || data.address.suburb || "STATION";
-                document.getElementById('city-name').innerText = name.toUpperCase();
-            } catch (e) {
-                document.getElementById('city-name').innerText = "STATION";
-            }
+            } catch (err) { console.error(err); }
+            finally { document.getElementById('loader').style.display = 'none'; }
         }
 
         function renderHourlyChart(h, startIdx) {
-            const labels = [], temps = [], feels = [], rain = [];
+            const labels = [], temps = [], feels = [], rains = [];
             const iconBox = document.getElementById('hourly-icons');
             iconBox.innerHTML = '';
 
             for (let i = 0; i < 12; i++) {
                 const idx = startIdx + i;
-                if (!h.time[idx]) break;
                 labels.push(new Date(h.time[idx]).getHours() + ":00");
-                temps.push(h.temperature_2m[idx] ?? 0);
-                feels.push(h.apparent_temperature[idx] ?? 0);
-                rain.push(h.precipitation[idx] ?? 0);
-                
+                temps.push(h.temperature_2m[idx]);
+                feels.push(h.apparent_temperature[idx]);
+                rains.push(h.precipitation[idx]);
                 const ic = document.createElement('span');
                 ic.className = "w-10 text-center text-sm";
                 ic.innerText = getEmoji(h.weathercode[idx]);
@@ -470,46 +382,41 @@
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Temp', data: temps, borderColor: '#0066FF', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 4, pointBackgroundColor: 'white' },
-                        { label: 'Feel', data: feels, borderColor: '#C7C7CC', borderWidth: 2, borderDash: [4,4], tension: 0.4, yAxisID: 'y', pointRadius: 0 },
-                        { label: 'Rain', data: rain, type: 'bar', backgroundColor: 'rgba(0, 102, 255, 0.2)', yAxisID: 'y1' }
+                        { label: 'T', data: temps, borderColor: '#0066FF', borderWidth: 3, tension: 0.4, yAxisID: 'y' },
+                        { label: 'R', data: rains, type: 'bar', backgroundColor: 'rgba(0,102,255,0.1)', yAxisID: 'y1' }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 25 } },
+                    layout: { padding: { top: 20 } },
                     plugins: { 
                         legend: { display: false },
                         datalabels: {
-                            display: (context) => context.dataset.type === 'bar' ? (context.dataset.data[context.dataIndex] > 0) : true,
-                            align: 'top',
-                            offset: 4,
-                            font: { size: 10, weight: 'bold' },
-                            color: (context) => context.dataset.type === 'bar' ? '#0066FF' : '#1C1C1E',
-                            formatter: (v, c) => c.dataset.type === 'bar' ? v.toFixed(1) : Math.round(v) + '°'
+                            align: 'top', font: { size: 10, weight: '900' },
+                            formatter: (v, context) => {
+                                if (context.dataset.type === 'bar') return v > 0 ? v.toFixed(1) + 'mm' : '';
+                                return Math.round(v) + '°C';
+                            }
                         }
                     },
                     scales: { 
-                        y: { display: false, grace: '20%' }, 
-                        y1: { display: false, position: 'right', max: Math.max(...rain, 5) * 1.5 }, 
-                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } } 
+                        y: { display: false, grace: '30%' },
+                        y1: { display: false, position: 'right', max: Math.max(...rains, 5) * 2 },
+                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { weight: '800', size: 10 } } }
                     }
                 }
             });
         }
 
         function renderDailyChart(d) {
-            const labels = [], maxs = [], mins = [], rain = [];
+            const labels = [], maxs = [], mins = [];
             const iconBox = document.getElementById('daily-icons');
             iconBox.innerHTML = '';
 
             for (let i = 0; i < 8; i++) {
-                if (!d.time[i]) break;
                 labels.push(d.time[i].split('-').slice(1).join('/'));
-                maxs.push(d.temperature_2m_max[i] ?? 0);
-                mins.push(d.temperature_2m_min[i] ?? 0);
-                rain.push(d.precipitation_sum[i] ?? 0);
-
+                maxs.push(d.temperature_2m_max[i]);
+                mins.push(d.temperature_2m_min[i]);
                 const ic = document.createElement('span');
                 ic.className = "w-10 text-center text-sm";
                 ic.innerText = getEmoji(d.weathercode[i]);
@@ -522,32 +429,25 @@
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.3, pointRadius: 4, pointBackgroundColor: 'white' },
-                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.3, pointRadius: 4, pointBackgroundColor: 'white' },
-                        { label: 'Rain', data: rain, type: 'bar', backgroundColor: 'rgba(0, 122, 255, 0.15)', yAxisID: 'y1' }
+                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.3 },
+                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.3 }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 25 } },
+                    layout: { padding: { top: 20, bottom: 20 } },
                     plugins: { 
                         legend: { display: false },
                         datalabels: {
-                            display: (context) => context.dataset.type === 'bar' ? (context.dataset.data[context.dataIndex] > 0) : true,
-                            align: (context) => context.dataset.label === 'Min' ? 'bottom' : 'top',
-                            offset: 6,
-                            font: { size: 10, weight: 'bold' },
-                            color: (context) => {
-                                if (context.dataset.type === 'bar') return '#0066FF';
-                                return context.dataset.label === 'Max' ? '#FF3B30' : '#007AFF';
-                            },
-                            formatter: (v, c) => c.dataset.type === 'bar' ? v.toFixed(1) : Math.round(v) + '°'
+                            align: (ctx) => ctx.datasetIndex === 0 ? 'top' : 'bottom',
+                            color: (ctx) => ctx.datasetIndex === 0 ? '#FF3B30' : '#007AFF',
+                            font: { size: 10, weight: '900' },
+                            formatter: (v) => Math.round(v) + '°C'
                         }
                     },
                     scales: { 
-                        y: { display: false, grace: '20%' }, 
-                        y1: { display: false, position: 'right', max: Math.max(...rain, 10) * 1.5 },
-                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } } 
+                        y: { display: false, grace: '40%' }, 
+                        x: { grid: { display: false }, border: { display: false }, ticks: { font: { weight: '800', size: 10 } } }
                     }
                 }
             });
@@ -557,49 +457,96 @@
             const container = document.getElementById('list-14d');
             container.innerHTML = '';
             for (let i = 1; i < 15; i++) {
-                if (!d.time[i]) break;
-                const max = d.temperature_2m_max[i] ?? 0;
-                const min = d.temperature_2m_min[i] ?? 0;
-                const rain = d.precipitation_sum[i] ?? 0;
-                const wind = d.windspeed_10m_max[i] ?? 0;
-                const diff = Math.round(max - (d.temperature_2m_max[i-1] ?? max));
                 const dateObj = new Date(d.time[i]);
-                const dateStr = `${dateObj.getMonth()+1}/${dateObj.getDate()}`;
                 const dayStr = dateObj.toLocaleDateString(STATE.lang === 'zh' ? 'zh-TW' : (STATE.lang === 'ja' ? 'ja-JP' : 'en-US'), { weekday: 'short' });
+                const diff = (d.temperature_2m_max[i] - d.temperature_2m_max[i-1]).toFixed(1);
 
                 const card = document.createElement('div');
                 card.className = "glass-card p-4 flex items-center justify-between";
                 card.innerHTML = `
                     <div class="w-14">
-                        <div class="text-[10px] font-black text-slate-400 leading-none">${dateStr}</div>
+                        <div class="text-[10px] font-black text-slate-400 leading-none">${dateObj.getMonth()+1}/${dateObj.getDate()}</div>
                         <div class="text-xs font-bold text-slate-800">${dayStr}</div>
                     </div>
                     <div class="text-3xl mx-2">${getEmoji(d.weathercode[i])}</div>
-                    <div class="flex-grow flex flex-col items-center">
-                        <div class="text-sm font-black text-slate-800">${Math.round(max)}° / ${Math.round(min)}°</div>
-                        <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">TEMP DIFF <span class="${diff >= 0 ? 'text-red-500' : 'text-blue-500'}">${diff >= 0 ? '+' : ''}${diff}°</span></div>
+                    <div class="flex-grow text-center">
+                        <div class="text-sm font-black text-slate-800">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+                        <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${t('temp_diff')} <span class="${diff >= 0 ? 'text-red-500' : 'text-blue-500'}">${diff >= 0 ? '+' : ''}${diff}°</span></div>
                     </div>
                     <div class="text-right w-16">
-                        <div class="text-[10px] font-black text-blue-500">${rain.toFixed(1)}mm</div>
-                        <div class="text-[9px] font-bold text-slate-300">${Math.round(wind)}km/h</div>
+                        <div class="text-[10px] font-black text-blue-500">${d.precipitation_sum[i].toFixed(1)}mm</div>
                     </div>
                 `;
                 container.appendChild(card);
             }
         }
 
+        function updateMap(lat, lon) {
+            if (!STATE.map) {
+                STATE.map = L.map('mini-map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 10);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(STATE.map);
+                STATE.marker = L.marker([lat, lon]).addTo(STATE.map);
+            } else {
+                STATE.map.setView([lat, lon], 10);
+                STATE.marker.setLatLng([lat, lon]);
+            }
+        }
+
+        async function reverseGeocode(lat, lon) {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&accept-language=${STATE.lang}`);
+                const data = await res.json();
+                document.getElementById('city-name').innerText = (data.address.city || data.address.town || data.address.state || "STATION");
+            } catch (e) { document.getElementById('city-name').innerText = "STATION"; }
+        }
+
+        function renderLocationBar() {
+            const container = document.getElementById('location-scroll');
+            container.innerHTML = '';
+            STATE.locations.forEach(loc => {
+                const btn = document.createElement('button');
+                btn.className = `btn-action whitespace-nowrap shrink-0 ${STATE.activeId === loc.id ? 'active' : ''}`;
+                btn.innerText = t(loc.name);
+                btn.onclick = () => { STATE.activeId = loc.id; switchLocation(loc.id); };
+                container.appendChild(btn);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.className = "btn-action border-dashed border-2 border-slate-200 text-slate-300 shrink-0";
+            addBtn.innerText = "+";
+            addBtn.onclick = () => toggleSearch(true);
+            container.appendChild(addBtn);
+        }
+
+        function switchLocation(id) {
+            document.getElementById('loader').style.display = 'flex';
+            const loc = STATE.locations.find(l => l.id === id);
+            if (id === 'gps') {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                    refreshWeather();
+                }, () => { STATE.coords = { lat: 24.83, lon: 121.01 }; refreshWeather(); });
+            } else {
+                STATE.coords = { lat: loc.lat, lon: loc.lon };
+                refreshWeather();
+            }
+            renderLocationBar();
+        }
+
         function setLang(l) {
             STATE.lang = l;
-            localStorage.setItem('zenith_lang', l);
-            updateStaticText();
+            localStorage.setItem('zenith_lang_v5', l);
+            updateUIStrings();
             renderLocationBar();
             refreshWeather();
         }
 
-        function toggleSearch(show) {
-            document.getElementById('search-modal').classList.toggle('hidden', !show);
-            if (show) document.getElementById('search-input').focus();
+        function manualModelChange(m) {
+            STATE.model = m;
+            localStorage.setItem('zenith_model_v5', m);
+            switchLocation(STATE.activeId);
         }
+
+        function toggleSearch(show) { document.getElementById('search-modal').classList.toggle('hidden', !show); }
 
         async function performSearch() {
             const q = document.getElementById('search-input').value;
@@ -610,32 +557,22 @@
             results.innerHTML = '';
             (data.results || []).forEach(r => {
                 const div = document.createElement('div');
-                div.className = "glass-card p-5 flex justify-between items-center cursor-pointer active:scale-95 transition";
-                div.innerHTML = `
-                    <div>
-                        <div class="font-black text-lg">${r.name}</div>
-                        <div class="text-xs text-slate-400 font-bold">${r.admin1 || ''}, ${r.country}</div>
-                    </div>
-                    <div class="text-blue-500 font-black text-xs uppercase">Add</div>
-                `;
+                div.className = "glass-card p-4 flex justify-between items-center cursor-pointer active:scale-95 transition";
+                div.innerHTML = `<div><div class="font-black text-sm">${r.name}</div><div class="text-[10px] text-slate-400">${r.admin1 || ''}, ${r.country}</div></div><div class="text-blue-500 font-black text-xs uppercase">${t('add')}</div>`;
                 div.onclick = () => {
                     const newLoc = { id: 'loc_' + Date.now(), name: r.name, lat: r.latitude, lon: r.longitude };
                     STATE.locations.push(newLoc);
                     localStorage.setItem('zenith_locs_v5', JSON.stringify(STATE.locations));
                     toggleSearch(false);
+                    STATE.activeId = newLoc.id;
                     switchLocation(newLoc.id);
                 };
                 results.appendChild(div);
             });
         }
 
-        function manualModelChange(m) {
-            STATE.model = m;
-            initRefresh();
-        }
-
         window.onload = () => {
-            updateStaticText();
+            updateUIStrings();
             switchLocation(STATE.activeId);
         };
     </script>
