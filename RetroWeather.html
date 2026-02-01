@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>WeatherYa V5</title>
+    <title>WeatherYa V6</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
@@ -122,7 +122,7 @@
                 <button onclick="toggleSearch(false)" class="text-slate-400 font-bold" id="ui-cancel">取消</button>
             </div>
             <div class="flex gap-3 mb-8">
-                <input type="text" id="search-input" class="flex-grow bg-slate-100 rounded-2xl px-5 py-4 outline-none font-bold text-lg" placeholder="輸入城市..." onkeypress="if(event.key === 'Enter') performSearch()">
+                <input type="text" id="search-input" class="flex-grow bg-slate-100 rounded-2xl px-5 py-4 outline-none font-bold text-lg" placeholder="城市..." onkeypress="if(event.key === 'Enter') performSearch()">
                 <button onclick="performSearch()" class="bg-blue-600 text-white px-8 rounded-2xl font-black">尋找</button>
             </div>
             <div id="search-results" class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar"></div>
@@ -142,7 +142,6 @@
             </div>
         </header>
 
-        <!-- 地點選擇列 -->
         <nav id="location-bar" class="flex gap-2 overflow-x-auto no-scrollbar py-2"></nav>
 
         <section class="flex justify-between items-center gap-4">
@@ -204,7 +203,6 @@
             </div>
         </section>
 
-        <!-- 12H 圖表 -->
         <section class="space-y-4">
             <h3 id="ui-lbl-12h" class="text-xs font-black text-slate-400 uppercase tracking-widest">12小時時段預報</h3>
             <div class="chart-wrapper">
@@ -213,16 +211,15 @@
             </div>
         </section>
 
-        <!-- 8D 圖表 -->
+        <!-- 8日氣溫趨勢 (含昨日) -->
         <section class="space-y-4">
-            <h3 id="ui-lbl-8d" class="text-xs font-black text-slate-400 uppercase tracking-widest">8日氣溫趨勢</h3>
+            <h3 id="ui-lbl-8d" class="text-xs font-black text-slate-400 uppercase tracking-widest">氣溫趨勢 (含昨日)</h3>
             <div class="chart-wrapper">
                 <div id="d8-icons" class="absolute top-0 w-full flex justify-around px-4 pointer-events-none z-10"></div>
                 <canvas id="chart-d8"></canvas>
             </div>
         </section>
 
-        <!-- 14D 列表 -->
         <section class="space-y-4 pb-20">
             <h3 id="ui-lbl-14d" class="text-xs font-black text-slate-400 uppercase tracking-widest">14日深度預報</h3>
             <div id="list-14d" class="space-y-3"></div>
@@ -234,26 +231,30 @@
     </button>
 
     <script>
+        // 語言隔離字典
         const I18N = {
             zh: {
                 search_title: "搜尋地點", cancel: "取消", yesterday: "昨日回顧", today: "今日預報",
-                h12: "12小時時段預報", d8: "8日氣溫趨勢", d14: "14日深度預報", current_loc: "目前位置",
+                h12: "12小時時段預報", d8: "氣溫趨勢 (含昨日)", d14: "14日深度預報",
                 wind: "風速", rain: "降雨", add: "新增", diff_up: "高於昨", diff_down: "低於昨", diff_same: "持平",
                 feels: "體感溫度", feels_short: "體感", diff: "變動", temp_diff: "溫", wind_diff: "風",
+                yest_label: "昨日",
                 cities: { gps: "目前位置", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
             },
             en: {
                 search_title: "Search", cancel: "Cancel", yesterday: "Yesterday", today: "Today",
-                h12: "12-H Forecast", d8: "8-Day Trend", d14: "14-Day Deep View", current_loc: "GPS",
+                h12: "12-H Forecast", d8: "Temp Trend (inc. Yest)", d14: "14-Day Deep View",
                 wind: "Wind", rain: "Rain", add: "Add", diff_up: "Higher", diff_down: "Lower", diff_same: "Same",
                 feels: "Feels Like", feels_short: "Feels", diff: "Diff", temp_diff: "Temp", wind_diff: "Wind",
+                yest_label: "Yest",
                 cities: { gps: "GPS", zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka" }
             },
             ja: {
                 search_title: "場所検索", cancel: "戻る", yesterday: "昨日回顧", today: "今日予報",
-                h12: "12時間予報", d8: "8日間趨勢", d14: "14日間詳細予報", current_loc: "現在地",
+                h12: "12時間予報", d8: "気温趨勢 (昨日含む)", d14: "14日間詳細予報",
                 wind: "風速", rain: "降水", add: "追加", diff_up: "昨日より高い", diff_down: "昨日より低い", diff_same: "変わらず",
                 feels: "体感溫度", feels_short: "体感", diff: "変化", temp_diff: "気温", wind_diff: "風",
+                yest_label: "昨日",
                 cities: { gps: "現在地", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
             }
         };
@@ -267,11 +268,11 @@
         ];
 
         const STATE = {
-            lang: localStorage.getItem('wy_v5_lang') || 'zh',
-            activeId: localStorage.getItem('wy_v5_active') || 'gps',
-            model: localStorage.getItem('wy_v5_model') || 'auto',
+            lang: localStorage.getItem('wy_v6_lang') || 'zh',
+            activeId: localStorage.getItem('wy_v6_active') || 'gps',
+            model: localStorage.getItem('wy_v6_model') || 'auto',
             coords: { lat: 24.83, lon: 121.01 },
-            locations: JSON.parse(localStorage.getItem('wy_v5_locs')) || DEFAULT_LOCATIONS,
+            locations: JSON.parse(localStorage.getItem('wy_v6_locs')) || DEFAULT_LOCATIONS,
             charts: {},
             map: null,
             marker: null
@@ -281,9 +282,7 @@
 
         function t(key, category = null) {
             const langData = I18N[STATE.lang];
-            if (category && langData[category] && langData[category][key]) {
-                return langData[category][key];
-            }
+            if (category && langData[category] && langData[category][key]) return langData[category][key];
             return langData[key] || key;
         }
 
@@ -300,18 +299,18 @@
 
         function determineModel(lat, lon) {
             if (STATE.model !== 'auto') return STATE.model;
-            if (lat >= 21.8 && lat <= 25.8 && lon >= 119.0 && lon <= 122.8) return 'jma_seamless';
-            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
-            if (lat >= 33 && lat <= 39 && lon >= 124 && lon <= 131) return 'kma_gdps';
+            if (lat >= 21.8 && lat <= 25.8 && lon >= 119.0 && lon <= 122.8) return 'jma_seamless'; // Taiwan
+            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless'; // Japan
+            if (lat >= 33 && lat <= 39 && lon >= 124 && lon <= 131) return 'kma_gdps'; // Korea
             return 'ecmwf_ifs025';
         }
 
-        async function fetchRetry(url, limit = 5) {
+        async function fetchWithRetry(url, limit = 5) {
             let delay = 1000;
             for (let i = 0; i < limit; i++) {
                 try {
                     const res = await fetch(url);
-                    if (!res.ok) throw new Error('Retry');
+                    if (!res.ok) throw new Error('Fetch Error');
                     return await res.json();
                 } catch (e) {
                     if (i === limit - 1) throw e;
@@ -330,20 +329,22 @@
             const model = determineModel(lat, lon);
             document.getElementById('actual-model-badge').innerText = model.split('_')[0].toUpperCase();
 
+            // 抓取過去 2 天到未來 14 天的資料
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max&timezone=auto&past_days=2&forecast_days=14&models=${model}`;
 
             try {
-                const raw = await fetchRetry(url);
+                const raw = await fetchWithRetry(url);
                 const h = getDataField(raw, 'hourly', model) || {};
                 const d = getDataField(raw, 'daily', model) || {};
                 const nowIdx = 48 + new Date().getHours(); 
 
+                // 目前天氣
                 document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m?.[nowIdx] ?? 0);
                 document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature?.[nowIdx] ?? 0);
                 document.getElementById('curr-wind').innerText = Math.round(h.windspeed_10m?.[nowIdx] ?? 0);
                 document.getElementById('curr-rain').innerText = (h.precipitation?.[nowIdx] ?? 0).toFixed(1);
 
-                // 昨日
+                // 昨日回顧 (index 1 是昨日，index 0 是前日)
                 document.getElementById('yest-emoji').innerText = getEmoji(d.weathercode?.[1]);
                 document.getElementById('yest-temp').innerText = `${Math.round(d.temperature_2m_max?.[1] ?? 0)} / ${Math.round(d.temperature_2m_min?.[1] ?? 0)}`;
                 document.getElementById('yest-feels').innerText = `${Math.round(d.apparent_temperature_max?.[1] ?? 0)}°`;
@@ -354,7 +355,7 @@
                 const yWindDiff = (d.windspeed_10m_max[1] - d.windspeed_10m_max[0]).toFixed(1);
                 document.getElementById('yest-diff-txt').innerText = `${t('temp_diff')}:${yMaxDiff>0?'+':''}${yMaxDiff}° ${t('wind_diff')}:${yWindDiff>0?'+':''}${yWindDiff}`;
 
-                // 今日
+                // 今日預報 (index 2 是今日)
                 const tMax = d.temperature_2m_max?.[2] ?? 0;
                 const yMax = d.temperature_2m_max?.[1] ?? 0;
                 const tDiff = (tMax - yMax).toFixed(1);
@@ -372,7 +373,7 @@
 
                 updateMap(lat, lon);
                 renderH12Chart(h, nowIdx);
-                renderD8Chart(d);
+                renderD8Chart(d); // 渲染包含昨日的 8 日趨勢
                 render14DayList(d);
                 reverseGeocode(lat, lon);
 
@@ -408,13 +409,9 @@
                 data: {
                     labels,
                     datasets: [
-                        { 
-                            type: 'bar', label: 'Rain', data: rainValues, 
-                            backgroundColor: 'rgba(0, 122, 255, 0.4)', borderColor: '#007AFF', borderWidth: 1, 
-                            yAxisID: 'yRain', borderRadius: 4, order: 2, barPercentage: 0.6
-                        },
-                        { type: 'line', label: 'Temp', data: temps, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 },
-                        { type: 'line', label: 'Feels', data: feels, borderColor: '#FF9500', borderWidth: 2, borderDash: [4, 4], tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 }
+                        { type: 'bar', data: rainValues, backgroundColor: 'rgba(0, 122, 255, 0.4)', borderColor: '#007AFF', borderWidth: 1, yAxisID: 'yRain', borderRadius: 4, order: 2, barPercentage: 0.6 },
+                        { type: 'line', data: temps, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 },
+                        { type: 'line', data: feels, borderColor: '#FF9500', borderWidth: 2, borderDash: [4, 4], tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 }
                     ]
                 },
                 options: {
@@ -439,32 +436,43 @@
             });
         }
 
+        // 修改後的 8 日趨勢圖，包含昨日
         function renderD8Chart(d) {
             const labels = [], maxs = [], mins = [], rainActuals = [];
             const icons = document.getElementById('d8-icons');
             icons.innerHTML = '';
-            for (let i = 2; i < 10; i++) {
+            
+            // 從 index 1 (昨日) 開始，抓到 index 8 (未來 6 天) 共 8 天
+            for (let i = 1; i < 9; i++) {
                 if(!d.time?.[i]) break;
                 const date = new Date(d.time[i]);
-                labels.push((date.getMonth() + 1) + "/" + date.getDate());
+                const isYest = i === 1;
+                
+                // 標籤處理
+                if (isYest) labels.push(t('yest_label'));
+                else labels.push((date.getMonth() + 1) + "/" + date.getDate());
+
                 maxs.push(d.temperature_2m_max[i]);
                 mins.push(d.temperature_2m_min[i]);
                 rainActuals.push(d.precipitation_sum?.[i] || 0);
+
                 const span = document.createElement('span');
-                span.className = "text-[16px] pt-1";
+                span.className = `text-[16px] pt-1 ${isYest ? 'opacity-40 grayscale' : ''}`;
                 span.innerText = getEmoji(d.weathercode[i]);
                 icons.appendChild(span);
             }
+
             const maxRain = Math.max(...rainActuals);
             const rainAxisMax = maxRain > 0 ? maxRain * 3 : 10;
+
             if(STATE.charts.d) STATE.charts.d.destroy();
             STATE.charts.d = new Chart(document.getElementById('chart-d8'), {
                 data: {
                     labels,
                     datasets: [
-                        { type: 'bar', label: 'Rain', data: rainActuals, backgroundColor: 'rgba(0, 122, 255, 0.3)', borderColor: '#007AFF', borderWidth: 1, yAxisID: 'yRain', borderRadius: 4, order: 2, barPercentage: 0.5 },
-                        { type: 'line', label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 },
-                        { type: 'line', label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 }
+                        { type: 'bar', data: rainActuals, backgroundColor: 'rgba(0, 122, 255, 0.3)', borderColor: '#007AFF', borderWidth: 1, yAxisID: 'yRain', borderRadius: 4, order: 2, barPercentage: 0.5 },
+                        { type: 'line', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: (ctx) => ctx.dataIndex === 0 ? '#E5E7EB' : 'white', order: 1 },
+                        { type: 'line', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: (ctx) => ctx.dataIndex === 0 ? '#E5E7EB' : 'white', order: 1 }
                     ]
                 },
                 options: {
@@ -475,14 +483,14 @@
                         datalabels: { 
                             font: { size: 9, weight: '900' },
                             formatter: (v, ctx) => (ctx.dataset.type === 'bar' ? (v > 0 ? v.toFixed(1) : '') : Math.round(v) + '°'),
-                            color: (ctx) => (ctx.dataset.type === 'bar' ? '#007AFF' : '#1C1C1E'),
-                            align: (ctx) => (ctx.dataset.type === 'bar' ? 'top' : (ctx.dataset.label === 'Max' ? 'top' : 'bottom'))
+                            color: (ctx) => (ctx.dataIndex === 0 ? '#9CA3AF' : (ctx.dataset.type === 'bar' ? '#007AFF' : '#1C1C1E')),
+                            align: (ctx) => (ctx.dataset.type === 'bar' ? 'top' : (ctx.dataset.data[ctx.dataIndex] === Math.max(...ctx.dataset.data) ? 'top' : 'bottom'))
                         }
                     },
                     scales: { 
                         y: { display: false, grace: '100%' }, 
                         yRain: { display: false, min: 0, max: rainAxisMax }, 
-                        x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' }}
+                        x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: (ctx) => ctx.index === 0 ? '#000000' : '#8E8E93' }}
                     }
                 }
             });
@@ -541,7 +549,7 @@
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&accept-language=${lang}`);
                 const data = await res.json();
                 document.getElementById('city-name').innerText = data.address.city || data.address.town || data.address.village || data.address.state || "Location";
-            } catch (e) { document.getElementById('city-name').innerText = "Syncing..."; }
+            } catch (e) { document.getElementById('city-name').innerText = "Location Found"; }
         }
 
         function renderLocationBar() {
@@ -554,15 +562,11 @@
                 btn.onclick = (e) => {
                     if (e.target.tagName !== 'SPAN') switchLocation(loc.id);
                 };
-
                 if (!loc.static && loc.id !== 'gps') {
                     const del = document.createElement('span');
                     del.className = "delete-btn";
                     del.innerHTML = "×";
-                    del.onclick = (e) => {
-                        e.stopPropagation();
-                        removeLocation(loc.id);
-                    };
+                    del.onclick = (e) => { e.stopPropagation(); removeLocation(loc.id); };
                     btn.appendChild(del);
                 }
                 bar.appendChild(btn);
@@ -571,14 +575,14 @@
 
         function removeLocation(id) {
             STATE.locations = STATE.locations.filter(l => l.id !== id);
-            localStorage.setItem('wy_v5_locs', JSON.stringify(STATE.locations));
+            localStorage.setItem('wy_v6_locs', JSON.stringify(STATE.locations));
             if (STATE.activeId === id) switchLocation('gps');
             else renderLocationBar();
         }
 
         function switchLocation(id) {
             STATE.activeId = id;
-            localStorage.setItem('wy_v5_active', id);
+            localStorage.setItem('wy_v6_active', id);
             document.getElementById('loader').style.display = 'flex';
             const loc = STATE.locations.find(l => l.id === id);
             if(id === 'gps') {
@@ -602,13 +606,13 @@
             const q = document.getElementById('search-input').value.trim();
             if(!q) return;
             const resBox = document.getElementById('search-results');
-            resBox.innerHTML = '<div class="text-center py-20 font-black text-slate-300 text-xs animate-pulse">SEARCHING...</div>';
+            resBox.innerHTML = '<div class="text-center py-20 text-slate-300 animate-pulse">SEARCHING...</div>';
             try {
                 const lang = STATE.lang === 'zh' ? 'zh-TW' : STATE.lang;
                 const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=${lang}`);
                 const data = await res.json();
                 resBox.innerHTML = '';
-                if(!data.results) { resBox.innerHTML = '<div class="text-center py-20 text-slate-400">NO RESULTS</div>'; return; }
+                if(!data.results) { resBox.innerHTML = '<div class="text-center py-20">No Results</div>'; return; }
                 data.results.forEach(r => {
                     const d = document.createElement('div');
                     d.className = "bg-slate-50 p-6 rounded-2xl flex justify-between items-center active:scale-95 transition-all";
@@ -621,20 +625,19 @@
                     `;
                     d.onclick = () => {
                         const newId = 'loc_'+Date.now();
-                        const newLoc = { id: newId, name: r.name, lat: r.latitude, lon: r.longitude };
-                        STATE.locations.push(newLoc);
-                        localStorage.setItem('wy_v5_locs', JSON.stringify(STATE.locations));
+                        STATE.locations.push({ id: newId, name: r.name, lat: r.latitude, lon: r.longitude });
+                        localStorage.setItem('wy_v6_locs', JSON.stringify(STATE.locations));
                         toggleSearch(false);
                         switchLocation(newId);
                     };
                     resBox.appendChild(d);
                 });
-            } catch(e) { resBox.innerHTML = 'Error.'; }
+            } catch(e) { resBox.innerHTML = 'Error searching.'; }
         }
 
         function setLang(l) {
             STATE.lang = l;
-            localStorage.setItem('wy_v5_lang', l);
+            localStorage.setItem('wy_v6_lang', l);
             updateUIStrings();
             renderLocationBar();
             refresh();
@@ -642,7 +645,7 @@
 
         function manualModelChange(m) {
             STATE.model = m;
-            localStorage.setItem('wy_v5_model', m);
+            localStorage.setItem('wy_v6_model', m);
             switchLocation(STATE.activeId);
         }
 
