@@ -189,6 +189,7 @@
             </div>
         </section>
 
+        <!-- Hourly 12H Section -->
         <section class="space-y-4">
             <h3 id="ui-lbl-12h" class="text-xs font-black text-slate-400 uppercase tracking-widest">12小時時段預報</h3>
             <div class="chart-wrapper">
@@ -197,6 +198,7 @@
             </div>
         </section>
 
+        <!-- Daily 8D Section -->
         <section class="space-y-4">
             <h3 id="ui-lbl-8d" class="text-xs font-black text-slate-400 uppercase tracking-widest">8日氣溫趨勢</h3>
             <div class="chart-wrapper">
@@ -301,7 +303,6 @@
             }
         }
 
-        // Helper to find data field that might be suffixed by model name
         function getDataField(obj, baseName, model) {
             return obj[baseName] || obj[`${baseName}_${model}`];
         }
@@ -312,7 +313,6 @@
             STATE.actualModel = model;
             document.getElementById('actual-model-badge').innerText = model.split('_')[0].toUpperCase();
 
-            // Daily Indices: Index 0=Day-2, 1=Yest, 2=Today
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max&timezone=auto&past_days=2&forecast_days=14&models=${model}`;
 
             try {
@@ -362,20 +362,26 @@
             finally { document.getElementById('loader').style.display = 'none'; }
         }
 
+        /**
+         * 修正 12 小時時段預報：解決降雨 Bar 不顯示的問題
+         */
         function renderH12Chart(h, start) {
-            const labels = [], temps = [], feels = [], rains = [], rainBars = [];
+            const labels = [], temps = [], feels = [], rainValues = [];
             const icons = document.getElementById('h12-icons');
             icons.innerHTML = '';
 
             for (let i = 0; i < 12; i++) {
                 const idx = start + i;
                 if(!h.time?.[idx]) break;
-                labels.push(new Date(h.time[idx]).getHours() + ":00");
+                
+                const time = new Date(h.time[idx]);
+                labels.push(time.getHours() + ":00");
                 temps.push(h.temperature_2m[idx]);
                 feels.push(h.apparent_temperature[idx]);
-                const r = h.precipitation?.[idx] ?? 0;
-                rains.push(r);
-                rainBars.push(r * 5); 
+                
+                // 抓取原始降雨值
+                const r = h.precipitation?.[idx] || 0;
+                rainValues.push(r);
                 
                 const span = document.createElement('span');
                 span.className = "text-[16px] pt-1";
@@ -383,65 +389,103 @@
                 icons.appendChild(span);
             }
 
+            // 計算 Rain Y 軸的最大值，確保微量降雨也有 Bar
+            const maxRain = Math.max(...rainValues);
+            const rainAxisMax = maxRain > 0 ? maxRain * 2.5 : 5; // 如果沒雨，設為 5 作為底線
+
             if(STATE.charts.h) STATE.charts.h.destroy();
             STATE.charts.h = new Chart(document.getElementById('chart-h12'), {
-                type: 'line',
+                type: 'bar', // 改為混合圖表基礎
                 data: {
                     labels,
                     datasets: [
                         { 
-                            label: 'Rain', data: rainBars, type: 'bar', 
-                            backgroundColor: 'rgba(0, 122, 255, 0.4)', borderColor: '#007AFF', borderWidth: 1, 
-                            yAxisID: 'yRain', borderRadius: 2, order: 2
+                            type: 'bar',
+                            label: 'Rain', 
+                            data: rainValues, 
+                            backgroundColor: 'rgba(0, 122, 255, 0.4)', 
+                            borderColor: '#007AFF', 
+                            borderWidth: 1, 
+                            yAxisID: 'yRain', 
+                            borderRadius: 4, 
+                            order: 2,
+                            barPercentage: 0.6
                         },
-                        { label: 'Temp', data: temps, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 },
-                        { label: 'Feels', data: feels, borderColor: '#FF9500', borderWidth: 2, borderDash: [3, 2], tension: 0.4, yAxisID: 'y', pointRadius: 0, order: 1 }
+                        { 
+                            type: 'line',
+                            label: 'Temp', 
+                            data: temps, 
+                            borderColor: '#FF3B30', 
+                            borderWidth: 3, 
+                            tension: 0.4, 
+                            yAxisID: 'y', 
+                            pointRadius: 0, 
+                            order: 1 
+                        },
+                        { 
+                            type: 'line',
+                            label: 'Feels', 
+                            data: feels, 
+                            borderColor: '#FF9500', 
+                            borderWidth: 2, 
+                            borderDash: [4, 4], 
+                            tension: 0.4, 
+                            yAxisID: 'y', 
+                            pointRadius: 0, 
+                            order: 1 
+                        }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 45, bottom: 5 } },
+                    layout: { padding: { top: 40, bottom: 5 } },
                     plugins: { 
                         legend: { display: false }, 
                         datalabels: { 
+                            display: (ctx) => {
+                                // 只有當數值大於 0 或是溫度時才顯示標籤
+                                if (ctx.dataset.type === 'bar') return ctx.dataset.data[ctx.dataIndex] > 0;
+                                return true;
+                            },
                             font: { size: 9, weight: '900' }, 
                             formatter: (v, ctx) => {
-                                if (ctx.dataset.type === 'bar') {
-                                    const actualRain = rains[ctx.dataIndex];
-                                    return actualRain > 0 ? actualRain.toFixed(1) : '';
-                                }
+                                if (ctx.dataset.type === 'bar') return v.toFixed(1);
                                 return Math.round(v) + '°';
                             },
                             color: (ctx) => ctx.dataset.type === 'bar' ? '#007AFF' : '#1C1C1E',
-                            align: (ctx) => ctx.dataset.type === 'bar' ? 'top' : 'top'
+                            align: 'top',
+                            offset: 2
                         }
                     },
                     scales: { 
                         y: { display: false, grace: '80%' }, 
-                        yRain: { display: false, position: 'bottom', max: Math.max(...rainBars, 5) * 4 }, 
-                        x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' }}
+                        yRain: { 
+                            display: false, 
+                            position: 'right', 
+                            min: 0, 
+                            max: rainAxisMax 
+                        }, 
+                        x: { 
+                            grid: { display: false }, 
+                            ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' }
+                        }
                     }
                 }
             });
         }
 
         function renderD8Chart(d) {
-            const labels = [], maxs = [], mins = [], rainActuals = [], rainBars = [];
+            const labels = [], maxs = [], mins = [], rainActuals = [];
             const icons = document.getElementById('d8-icons');
             icons.innerHTML = '';
 
-            // MUST Start from index 2 (TODAY)
             for (let i = 2; i < 10; i++) {
                 if(!d.time?.[i]) break;
                 const date = new Date(d.time[i]);
                 labels.push((date.getMonth() + 1) + "/" + date.getDate());
                 maxs.push(d.temperature_2m_max[i]);
                 mins.push(d.temperature_2m_min[i]);
-                
-                // Get rain from daily array
-                const r = d.precipitation_sum?.[i] || 0;
-                rainActuals.push(r);
-                rainBars.push(r * 10); // Scaled for bar chart visibility
+                rainActuals.push(d.precipitation_sum?.[i] || 0);
 
                 const span = document.createElement('span');
                 span.className = "text-[16px] pt-1";
@@ -449,46 +493,42 @@
                 icons.appendChild(span);
             }
 
+            const maxRain = Math.max(...rainActuals);
+            const rainAxisMax = maxRain > 0 ? maxRain * 3 : 10;
+
             if(STATE.charts.d) STATE.charts.d.destroy();
             STATE.charts.d = new Chart(document.getElementById('chart-d8'), {
-                type: 'line',
                 data: {
                     labels,
                     datasets: [
                         { 
-                            label: 'Rain', data: rainBars, type: 'bar', 
+                            type: 'bar',
+                            label: 'Rain', data: rainActuals, 
                             backgroundColor: 'rgba(0, 122, 255, 0.3)', borderColor: '#007AFF', borderWidth: 1, 
-                            yAxisID: 'yRain', borderRadius: 3, order: 2
+                            yAxisID: 'yRain', borderRadius: 4, order: 2, barPercentage: 0.5
                         },
-                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 },
-                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 }
+                        { type: 'line', label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 },
+                        { type: 'line', label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: 'white', order: 1 }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 45, bottom: 5 } },
+                    layout: { padding: { top: 40, bottom: 5 } },
                     plugins: { 
                         legend: { display: false }, 
                         datalabels: { 
                             font: { size: 9, weight: '900' },
-                            offset: (ctx) => ctx.dataset.type === 'bar' ? -2 : 4,
                             formatter: (v, ctx) => {
-                                if (ctx.dataset.type === 'bar') {
-                                    const realVal = rainActuals[ctx.dataIndex];
-                                    return realVal > 0 ? realVal.toFixed(1) : '';
-                                }
+                                if (ctx.dataset.type === 'bar') return v > 0 ? v.toFixed(1) : '';
                                 return Math.round(v) + '°';
                             },
                             color: (ctx) => ctx.dataset.type === 'bar' ? '#007AFF' : '#1C1C1E',
-                            align: (ctx) => {
-                                if (ctx.dataset.type === 'bar') return 'top';
-                                return ctx.dataset.label === 'Max' ? 'top' : 'bottom';
-                            }
+                            align: (ctx) => ctx.dataset.type === 'bar' ? 'top' : (ctx.dataset.label === 'Max' ? 'top' : 'bottom')
                         }
                     },
                     scales: { 
-                        y: { display: false, grace: '120%' }, 
-                        yRain: { display: false, max: Math.max(...rainBars, 10) * 3 }, 
+                        y: { display: false, grace: '100%' }, 
+                        yRain: { display: false, min: 0, max: rainAxisMax }, 
                         x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' }}
                     }
                 }
@@ -498,7 +538,6 @@
         function render14DayList(d) {
             const container = document.getElementById('list-14d');
             container.innerHTML = '';
-            // List starts from today (Index 2)
             for (let i = 2; i < 16; i++) {
                 if(!d.time?.[i]) break;
                 const date = new Date(d.time[i]);
