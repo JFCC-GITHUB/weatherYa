@@ -63,6 +63,26 @@
             box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
         }
 
+        .btn-add-loc {
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
+            border-radius: 14px;
+            background: #F2F2F7;
+            color: #8E8E93;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 900;
+            transition: all 0.2s;
+        }
+        
+        .btn-add-loc:active {
+            transform: scale(0.9);
+            background: #E5E5EA;
+        }
+
         .chart-wrapper {
             width: 100%;
             height: 280px;
@@ -83,17 +103,6 @@
             position: fixed; inset: 0; z-index: 9999;
             background: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-        }
-
-        .bottom-action-btn {
-            position: fixed; bottom: 40px; right: 20px;
-            width: 60px; height: 60px; border-radius: 30px;
-            background: #007AFF; color: white; display: flex;
-            align-items: center; justify-content: center;
-            box-shadow: 0 8px 24px rgba(0, 122, 255, 0.4);
-            z-index: 1000;
-            border: none;
-            cursor: pointer;
         }
 
         .delete-btn {
@@ -142,7 +151,10 @@
             </div>
         </header>
 
-        <nav id="location-bar" class="flex gap-2 overflow-x-auto no-scrollbar py-2"></nav>
+        <div class="flex items-center gap-2">
+            <nav id="location-bar" class="flex gap-2 overflow-x-auto no-scrollbar py-2"></nav>
+            <button onclick="toggleSearch(true)" class="btn-add-loc">+</button>
+        </div>
 
         <section class="flex justify-between items-center gap-4">
             <div class="flex-grow min-w-0">
@@ -171,7 +183,6 @@
         </section>
 
         <section class="grid grid-cols-2 gap-3">
-            <!-- 昨日回顧 -->
             <div class="stat-card bg-[#F9F9FB]">
                 <div>
                     <div class="flex justify-between mb-3">
@@ -189,7 +200,6 @@
                     <div id="yest-feels-txt" class="truncate text-slate-900">---</div>
                 </div>
             </div>
-            <!-- 今日預報 -->
             <div class="stat-card bg-blue-600 text-white border-none shadow-lg shadow-blue-50">
                 <div>
                     <div class="flex justify-between mb-3">
@@ -231,10 +241,6 @@
             <p class="text-[9px] text-center font-black text-slate-300 uppercase tracking-widest">Data Source: Open-Meteo / DWD / NOAA / JMA</p>
         </section>
     </main>
-
-    <button onclick="toggleSearch(true)" class="bottom-action-btn">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-    </button>
 
     <script>
         const I18N = {
@@ -342,13 +348,11 @@
 
                 STATE.sunTimes = d.sunrise.map((s, i) => ({ rise: new Date(s), set: new Date(d.sunset[i]) }));
 
-                // 目前天氣
                 document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m?.[nowIdx] ?? 0);
                 document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature?.[nowIdx] ?? 0);
                 document.getElementById('curr-wind').innerText = Math.round(h.windspeed_10m?.[nowIdx] ?? 0);
                 document.getElementById('curr-rain').innerText = (h.precipitation?.[nowIdx] ?? 0).toFixed(1);
 
-                // 昨日回顧 (index 1 是昨日, index 0 是前日)
                 const yMax = d.temperature_2m_max?.[1] ?? 0;
                 const pMax = d.temperature_2m_max?.[0] ?? 0;
                 const yDiff = (yMax - pMax).toFixed(1);
@@ -360,7 +364,6 @@
                 document.getElementById('yest-feels-txt').innerText = `${t('feels_short')} ${Math.round(d.apparent_temperature_max[1])}° / ${Math.round(d.apparent_temperature_min[1])}°`;
                 document.getElementById('yest-diff-txt').innerText = yDiff > 0 ? `↑${yDiff}° ${t('diff_up')}` : (yDiff < 0 ? `↓${Math.abs(yDiff)}° ${t('diff_down')}` : t('diff_same'));
 
-                // 今日預報 (index 2 是今日)
                 const tMax = d.temperature_2m_max?.[2] ?? 0;
                 const tDiff = (tMax - yMax).toFixed(1);
 
@@ -395,7 +398,6 @@
                 feels.push(h.apparent_temperature[idx]);
                 rainValues.push(h.precipitation?.[idx] || 0);
                 
-                // 日出日落判定
                 const daySun = STATE.sunTimes.find(s => s.rise.toDateString() === time.toDateString());
                 const isDay = daySun ? (time >= daySun.rise && time < daySun.set) : (time.getHours() >= 6 && time.getHours() < 18);
                 states.push(isDay);
@@ -409,7 +411,6 @@
             const maxRain = Math.max(...rainValues);
             const rainAxisMax = maxRain > 0 ? maxRain * 2.5 : 5;
 
-            // 背景插件: 區分日夜
             const dayNightPlugin = {
                 id: 'dayNightBackground',
                 beforeDraw: (chart) => {
