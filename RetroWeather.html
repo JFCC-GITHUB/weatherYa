@@ -309,9 +309,42 @@
 
         function determineModel(lat, lon) {
             if (STATE.model !== 'auto') return STATE.model;
+
+            // 1. 台灣區域 (JMA)
             if (lat >= 21.8 && lat <= 25.8 && lon >= 119.0 && lon <= 122.8) return 'jma_seamless';
+            
+            // 2. 日本區域 (JMA)
             if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
-            return 'ecmwf_ifs025';
+
+            // 3. 韓國區域 (KMA)
+            if (lat >= 33 && lat <= 43 && lon >= 124 && lon <= 132) return 'kma_gdps';
+
+            // 4. 歐洲區域 (ECMWF)
+            if (lat >= 34 && lat <= 72 && lon >= -25 && lon <= 45) return 'ecmwf_ifs025';
+
+            // 5. 美洲區域 (GFS)
+            if (lat >= 7 && lat <= 72 && lon >= -170 && lon <= -50) return 'gfs_global';
+
+            // 6. 其他區域：計算與中心點的距離
+            const centers = [
+                { id: 'jma_seamless', lat: 35.68, lon: 139.76 }, // 日本東京中心
+                { id: 'kma_gdps', lat: 37.56, lon: 126.97 },     // 韓國首爾中心
+                { id: 'ecmwf_ifs025', lat: 51.50, lon: -0.12 }, // 歐洲倫敦中心
+                { id: 'gfs_global', lat: 38.90, lon: -77.03 }   // 美國華盛頓中心
+            ];
+
+            let minDistance = Infinity;
+            let closestModel = 'ecmwf_ifs025'; // 預設
+
+            centers.forEach(center => {
+                const dist = getDistance(lat, lon, center.lat, center.lon);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestModel = center.id;
+                }
+            });
+
+            return closestModel;
         }
 
         async function fetchWithRetry(url, limit = 5) {
