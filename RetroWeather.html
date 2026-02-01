@@ -57,8 +57,8 @@
         }
 
         #mini-map {
-            width: 90px;
-            height: 90px;
+            width: 80px;
+            height: 80px;
             border-radius: 16px;
             overflow: hidden;
             flex-shrink: 0;
@@ -82,6 +82,18 @@
             font-size: 14px;
             font-weight: 900;
             color: #3F3F46;
+        }
+
+        #active-model-badge {
+            font-size: 9px;
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 900;
+            display: inline-block;
+            margin-left: 4px;
+            vertical-align: middle;
         }
     </style>
 </head>
@@ -116,13 +128,15 @@
                 <button onclick="setLang('en')" id="btn-en" class="px-3 py-1 rounded-lg text-xs font-black transition-all">EN</button>
             </div>
             
-            <div class="flex bg-slate-100 p-1 rounded-xl shrink-0">
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl shrink-0">
                 <select id="model-select" onchange="manualModelChange(this.value)" class="bg-transparent border-none outline-none text-[10px] font-black px-2 cursor-pointer uppercase">
                     <option value="auto">Auto</option>
                     <option value="jma_seamless">JMA</option>
+                    <option value="kma_gdps">KMA</option>
                     <option value="ecmwf_ifs025">ECMWF</option>
                     <option value="gfs_global">GFS</option>
                 </select>
+                <span id="active-model-display" class="hidden text-[9px] font-black bg-blue-100 text-blue-600 px-2 py-0.5 rounded ml-1">---</span>
             </div>
         </header>
 
@@ -136,7 +150,8 @@
                         <span id="ui-now-tag" class="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase">---</span>
                         <span id="current-time" class="text-[10px] font-bold text-slate-400">--:--</span>
                     </div>
-                    <h1 id="city-name" class="text-xl font-black text-slate-900 truncate uppercase">---</h1>
+                    <h1 id="city-name" class="text-xl font-black text-slate-900 truncate uppercase inline-block">---</h1>
+                    <div id="active-model-badge">---</div>
                     <div class="flex items-baseline gap-1 mt-1">
                         <span id="curr-temp" class="text-5xl font-black tracking-tighter">--</span>
                         <span class="text-lg font-black text-blue-500">°C</span>
@@ -161,9 +176,8 @@
             </div>
         </section>
 
-        <!-- Dynamic Detailed Cards -->
+        <!-- Detailed Cards -->
         <div class="grid grid-cols-1 gap-4">
-            <!-- Yesterday -->
             <div class="glass-card p-4 bg-slate-50/40">
                 <div class="flex justify-between items-center mb-3">
                     <div id="ui-label-yesterday" class="text-[11px] font-black text-slate-400 uppercase">---</div>
@@ -184,7 +198,6 @@
                 </div>
             </div>
 
-            <!-- Today -->
             <div class="glass-card p-4 border-l-[6px] border-blue-500">
                 <div class="flex justify-between items-center mb-3">
                     <div id="ui-label-today" class="text-[11px] font-black text-blue-500 uppercase">---</div>
@@ -260,6 +273,7 @@
             lang: localStorage.getItem('zenith_lang_v5') || 'zh',
             activeId: 'gps',
             model: localStorage.getItem('zenith_model_v5') || 'auto',
+            actualModel: '',
             coords: { lat: 24.83, lon: 121.01 },
             locations: JSON.parse(localStorage.getItem('zenith_locs_v5')) || [
                 { id: 'gps', name: 'current_loc', lat: null, lon: null },
@@ -291,6 +305,14 @@
             return '☁️';
         }
 
+        function determineModel(lat, lon) {
+            if (STATE.model !== 'auto') return STATE.model;
+            // 根據經緯度自動選擇模型
+            if (lat > 20 && lat < 46 && lon > 118 && lon < 150) return 'jma_seamless'; // 台灣/日本區域
+            if (lat > 33 && lat < 39 && lon > 124 && lon < 131) return 'kma_gdps';    // 韓國區域
+            return 'ecmwf_ifs025'; // 全球預設
+        }
+
         function updateUIStrings() {
             document.getElementById('ui-search-title').innerText = t('search_title');
             document.getElementById('ui-search-btn').innerText = t('search_btn');
@@ -310,39 +332,56 @@
 
             ['zh', 'ja', 'en'].forEach(l => {
                 const btn = document.getElementById(`btn-${l}`);
-                btn.className = `px-3 py-1 rounded-lg text-xs font-black transition-all ${STATE.lang === l ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`;
+                if (btn) btn.className = `px-3 py-1 rounded-lg text-xs font-black transition-all ${STATE.lang === l ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`;
             });
         }
 
         async function refreshWeather() {
             const { lat, lon } = STATE.coords;
-            const modelParam = STATE.model === 'auto' ? '' : `&models=${STATE.model}`;
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max&timezone=auto&past_days=1&forecast_days=14${modelParam}`;
+            const targetModel = determineModel(lat, lon);
+            STATE.actualModel = targetModel;
+            
+            // 更新模型顯示標籤
+            const modelName = targetModel.split('_')[0].toUpperCase();
+            const badge = document.getElementById('active-model-badge');
+            badge.innerText = modelName;
+            
+            const modelDisplay = document.getElementById('active-model-display');
+            if(STATE.model === 'auto') {
+                modelDisplay.innerText = modelName;
+                modelDisplay.classList.remove('hidden');
+            } else {
+                modelDisplay.classList.add('hidden');
+            }
+
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max&timezone=auto&past_days=1&forecast_days=14&models=${targetModel}`;
 
             try {
                 const res = await fetch(url);
                 const data = await res.json();
-                const h = data.hourly;
-                const d = data.daily;
+                
+                // Open-Meteo Multi-model response structure normalization
+                const h = data.hourly || data[`hourly_${targetModel}`];
+                const d = data.daily || data[`daily_${targetModel}`];
+                
+                if (!h || !d) throw new Error("Data missing for model: " + targetModel);
+
                 const nowIdx = 24 + new Date().getHours();
 
-                // Current
-                document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m[nowIdx]);
-                document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature[nowIdx]);
-                document.getElementById('curr-rain').innerText = (h.precipitation[nowIdx]).toFixed(1);
-                document.getElementById('curr-wind').innerText = Math.round(h.windspeed_10m[nowIdx]);
+                document.getElementById('curr-temp').innerText = Math.round(h.temperature_2m[nowIdx] ?? 0);
+                document.getElementById('curr-feels').innerText = Math.round(h.apparent_temperature[nowIdx] ?? 0);
+                document.getElementById('curr-rain').innerText = (h.precipitation[nowIdx] ?? 0).toFixed(1);
+                document.getElementById('curr-wind').innerText = Math.round(h.windspeed_10m[nowIdx] ?? 0);
                 document.getElementById('current-time').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
-                // Yesterday Card
                 document.getElementById('yes-date').innerText = d.time[0].split('-').slice(1).join('/');
                 document.getElementById('yes-emoji').innerText = getEmoji(d.weathercode[0]);
-                document.getElementById('yes-hilo').innerText = `${Math.round(d.temperature_2m_max[0])}/${Math.round(d.temperature_2m_min[0])}°C`;
-                document.getElementById('yes-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[0])}/${Math.round(d.apparent_temperature_min[0])}°C`;
+                document.getElementById('yes-hilo').innerText = `${Math.round(d.temperature_2m_max[0] ?? 0)}/${Math.round(d.temperature_2m_min[0] ?? 0)}°C`;
+                document.getElementById('yes-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[0] ?? 0)}/${Math.round(d.apparent_temperature_min[0] ?? 0)}°C`;
 
-                // Today Card
                 document.getElementById('today-emoji').innerText = getEmoji(d.weathercode[1]);
-                document.getElementById('today-hilo').innerText = `${Math.round(d.temperature_2m_max[1])}/${Math.round(d.temperature_2m_min[1])}°C`;
-                document.getElementById('today-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[1])}/${Math.round(d.apparent_temperature_min[1])}°C`;
+                document.getElementById('today-hilo').innerText = `${Math.round(d.temperature_2m_max[1] ?? 0)}/${Math.round(d.temperature_2m_min[1] ?? 0)}°C`;
+                document.getElementById('today-feels-hilo').innerText = `${Math.round(d.apparent_temperature_max[1] ?? 0)}/${Math.round(d.apparent_temperature_min[1] ?? 0)}°C`;
 
                 const diff = (d.temperature_2m_max[1] - d.temperature_2m_max[0]).toFixed(1);
                 const diffEl = document.getElementById('today-diff-badge');
@@ -355,21 +394,29 @@
                 render14DList(d);
                 reverseGeocode(lat, lon);
 
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error(err);
+                // 如果特定模型失敗，嘗試切換到 GFS 兜底
+                if(targetModel !== 'gfs_global') {
+                    console.log("Retrying with GFS...");
+                    STATE.actualModel = 'gfs_global';
+                    refreshWeather();
+                }
+            }
             finally { document.getElementById('loader').style.display = 'none'; }
         }
 
         function renderHourlyChart(h, startIdx) {
-            const labels = [], temps = [], feels = [], rains = [];
+            const labels = [], temps = [], rains = [];
             const iconBox = document.getElementById('hourly-icons');
             iconBox.innerHTML = '';
 
             for (let i = 0; i < 12; i++) {
                 const idx = startIdx + i;
+                if (!h.time[idx]) break;
                 labels.push(new Date(h.time[idx]).getHours() + ":00");
-                temps.push(h.temperature_2m[idx]);
-                feels.push(h.apparent_temperature[idx]);
-                rains.push(h.precipitation[idx]);
+                temps.push(h.temperature_2m[idx] ?? 0);
+                rains.push(h.precipitation[idx] ?? 0);
                 const ic = document.createElement('span');
                 ic.className = "w-10 text-center text-sm";
                 ic.innerText = getEmoji(h.weathercode[idx]);
@@ -382,7 +429,7 @@
                 data: {
                     labels,
                     datasets: [
-                        { label: 'T', data: temps, borderColor: '#0066FF', borderWidth: 3, tension: 0.4, yAxisID: 'y' },
+                        { label: 'T', data: temps, borderColor: '#0066FF', borderWidth: 3, tension: 0.4, yAxisID: 'y', pointRadius: 0 },
                         { label: 'R', data: rains, type: 'bar', backgroundColor: 'rgba(0,102,255,0.1)', yAxisID: 'y1' }
                     ]
                 },
@@ -394,8 +441,8 @@
                         datalabels: {
                             align: 'top', font: { size: 10, weight: '900' },
                             formatter: (v, context) => {
-                                if (context.dataset.type === 'bar') return v > 0 ? v.toFixed(1) + 'mm' : '';
-                                return Math.round(v) + '°C';
+                                if (context.dataset.type === 'bar') return v > 0 ? v.toFixed(1) : '';
+                                return Math.round(v) + '°';
                             }
                         }
                     },
@@ -414,9 +461,10 @@
             iconBox.innerHTML = '';
 
             for (let i = 0; i < 8; i++) {
+                if (!d.time[i]) break;
                 labels.push(d.time[i].split('-').slice(1).join('/'));
-                maxs.push(d.temperature_2m_max[i]);
-                mins.push(d.temperature_2m_min[i]);
+                maxs.push(d.temperature_2m_max[i] ?? 0);
+                mins.push(d.temperature_2m_min[i] ?? 0);
                 const ic = document.createElement('span');
                 ic.className = "w-10 text-center text-sm";
                 ic.innerText = getEmoji(d.weathercode[i]);
@@ -429,8 +477,8 @@
                 data: {
                     labels,
                     datasets: [
-                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.3 },
-                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.3 }
+                        { label: 'Max', data: maxs, borderColor: '#FF3B30', borderWidth: 3, tension: 0.3, pointRadius: 2 },
+                        { label: 'Min', data: mins, borderColor: '#007AFF', borderWidth: 3, tension: 0.3, pointRadius: 2 }
                     ]
                 },
                 options: {
@@ -442,7 +490,7 @@
                             align: (ctx) => ctx.datasetIndex === 0 ? 'top' : 'bottom',
                             color: (ctx) => ctx.datasetIndex === 0 ? '#FF3B30' : '#007AFF',
                             font: { size: 10, weight: '900' },
-                            formatter: (v) => Math.round(v) + '°C'
+                            formatter: (v) => Math.round(v) + '°'
                         }
                     },
                     scales: { 
@@ -457,9 +505,11 @@
             const container = document.getElementById('list-14d');
             container.innerHTML = '';
             for (let i = 1; i < 15; i++) {
+                if (!d.time[i]) break;
                 const dateObj = new Date(d.time[i]);
                 const dayStr = dateObj.toLocaleDateString(STATE.lang === 'zh' ? 'zh-TW' : (STATE.lang === 'ja' ? 'ja-JP' : 'en-US'), { weekday: 'short' });
-                const diff = (d.temperature_2m_max[i] - d.temperature_2m_max[i-1]).toFixed(1);
+                const diff = (d.temperature_2m_max[i] - (d.temperature_2m_max[i-1] || 0)).toFixed(1);
+                const precip = (d.precipitation_sum && d.precipitation_sum[i] !== null) ? d.precipitation_sum[i] : 0;
 
                 const card = document.createElement('div');
                 card.className = "glass-card p-4 flex items-center justify-between";
@@ -470,11 +520,11 @@
                     </div>
                     <div class="text-3xl mx-2">${getEmoji(d.weathercode[i])}</div>
                     <div class="flex-grow text-center">
-                        <div class="text-sm font-black text-slate-800">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+                        <div class="text-sm font-black text-slate-800">${Math.round(d.temperature_2m_max[i] ?? 0)}° / ${Math.round(d.temperature_2m_min[i] ?? 0)}°</div>
                         <div class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${t('temp_diff')} <span class="${diff >= 0 ? 'text-red-500' : 'text-blue-500'}">${diff >= 0 ? '+' : ''}${diff}°</span></div>
                     </div>
                     <div class="text-right w-16">
-                        <div class="text-[10px] font-black text-blue-500">${d.precipitation_sum[i].toFixed(1)}mm</div>
+                        <div class="text-[10px] font-black text-blue-500">${precip.toFixed(1)}mm</div>
                     </div>
                 `;
                 container.appendChild(card);
@@ -518,14 +568,19 @@
         }
 
         function switchLocation(id) {
-            document.getElementById('loader').style.display = 'flex';
+            const loader = document.getElementById('loader');
+            if(loader) loader.style.display = 'flex';
+            
             const loc = STATE.locations.find(l => l.id === id);
             if (id === 'gps') {
                 navigator.geolocation.getCurrentPosition(pos => {
                     STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
                     refreshWeather();
-                }, () => { STATE.coords = { lat: 24.83, lon: 121.01 }; refreshWeather(); });
-            } else {
+                }, () => { 
+                    STATE.coords = { lat: 24.83, lon: 121.01 }; 
+                    refreshWeather(); 
+                });
+            } else if (loc) {
                 STATE.coords = { lat: loc.lat, lon: loc.lon };
                 refreshWeather();
             }
