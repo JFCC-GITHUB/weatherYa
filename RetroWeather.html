@@ -245,7 +245,7 @@
                 diff_up_y: "高於昨", diff_down_y: "低於昨",
                 feels: "體感溫度", feels_short: "體感", diff: "變動", temp_diff: "溫", wind_diff: "風",
                 yest_label: "昨日",
-                cities: { gps: "目前位置", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
+                cities: { gps: "目前位置", zhubei: "竹北"}
             },
             en: {
                 search_title: "Search", cancel: "Cancel", yesterday: "Yesterday", today: "Today",
@@ -254,7 +254,7 @@
                 diff_up_y: "Higher than Yest", diff_down_y: "Lower than Yest",
                 feels: "Feels Like", feels_short: "Feels", diff: "Diff", temp_diff: "Temp", wind_diff: "Wind",
                 yest_label: "Yest",
-                cities: { gps: "GPS", zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka" }
+                cities: { gps: "GPS", zhubei: "Zhubei"}
             },
             ja: {
                 search_title: "場所検索", cancel: "戻る", yesterday: "昨日回顧", today: "今日予報",
@@ -263,7 +263,7 @@
                 diff_up_y: "昨日より高い", diff_down_y: "昨日より低い",
                 feels: "体感溫度", feels_short: "体感", diff: "変化", temp_diff: "気温", wind_diff: "風",
                 yest_label: "昨日",
-                cities: { gps: "現在地", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪" }
+                cities: { gps: "現在地", zhubei: "竹北"}
             }
         };
 
@@ -274,9 +274,7 @@
             coords: { lat: 24.83, lon: 121.01 },
             locations: JSON.parse(localStorage.getItem('wy_v6_locs')) || [
                 { id: 'gps', name: 'gps', lat: null, lon: null },
-                { id: 'zhubei', name: 'zhubei', lat: 24.8388, lon: 121.0043, static: true },
-                { id: 'taipei', name: 'taipei', lat: 25.0330, lon: 121.5654, static: true },
-                { id: 'osaka', name: 'osaka', lat: 34.6937, lon: 135.5023, static: true }
+                { id: 'zhubei', name: 'zhubei', lat: 24.8388, lon: 121.0043, static: true }
             ],
             charts: {},
             map: null,
