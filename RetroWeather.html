@@ -3,476 +3,668 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RetroWeather Pro - Location Aware</title>
+    <title>RetroWeather Zenith</title>
     
+    <!-- 核心資源：Tailwind CSS, Chart.js, Leaflet -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+TC:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        
+        :root {
+            --bg-main: #0a0a0c;
+            --accent: #3b82f6;
+            --card-bg: rgba(23, 23, 26, 0.8);
+        }
+
         body {
-            background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
-            min-height: 100vh; color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Hiragino Sans", sans-serif;
-            -webkit-tap-highlight-color: transparent;
+            background-color: var(--bg-main);
+            color: #f8fafc;
+            font-family: "Inter", "Noto Sans TC", "Noto Sans JP", sans-serif;
+            letter-spacing: -0.01em;
         }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.4);
-            backdrop-filter: blur(20px); border-radius: 28px;
+
+        .zenith-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            cursor: pointer; transition: transform 0.2s;
+            border-radius: 24px;
+            overflow: hidden;
         }
-        .glass-card:active { transform: scale(0.98); }
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.92);
-            backdrop-filter: blur(25px); display: none; z-index: 100;
-            align-items: center; justify-content: center; padding: 20px;
+
+        .btn-pill {
+            padding: 8px 16px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 800;
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .modal-overlay.active { display: flex; }
-        .modal-content {
-            background: #1e293b; width: 100%; max-width: 450px;
-            border-radius: 32px; padding: 28px; border: 1px solid rgba(255,255,255,0.15);
+
+        .btn-active {
+            background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
         }
+
+        #map {
+            width: 100%;
+            aspect-ratio: 1/1;
+            border-radius: 20px;
+            filter: grayscale(0.2) contrast(1.1);
+        }
+
+        .diff-up { color: #f87171; }
+        .diff-down { color: #60a5fa; }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        select { background-image: none; }
+
+        /* 動態載入動畫 */
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .loader-screen {
+            position: fixed; inset: 0; z-index: 9999;
+            background: var(--bg-main);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease;
+        }
     </style>
 </head>
-<body class="p-4 pb-16">
-    <!-- 詳情彈窗 -->
-    <div id="infoModal" class="modal-overlay" onclick="closeModal()">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-4 text-center border-b border-white/10 pb-4"></h3>
-            <div id="modalBody" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2 no-scrollbar"></div>
-            <button id="modalCloseBtn" class="w-full mt-6 py-4 bg-blue-600 rounded-2xl font-bold" onclick="closeModal()">返回</button>
-        </div>
+<body class="p-4 md:p-8 lg:p-12 pb-24">
+
+    <div id="loader" class="loader-screen">
+        <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+        <div id="loader-text" class="text-[10px] font-black tracking-[0.5em] text-blue-500 uppercase">Synchronizing Satellite Data...</div>
     </div>
 
-    <!-- Header 頂部狀態列 -->
-    <div class="flex justify-between items-center mb-4 px-2">
-        <div id="syncTime" class="text-[9px] opacity-30 font-mono uppercase tracking-widest">SYNCING...</div>
-        <div class="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 256 256" class="opacity-40"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM140,80a12,12,0,1,1-12-12A12,12,0,0,1,140,80Zm-8,44v56a8,8,0,0,1-16,0V124a8,8,0,0,1,16,0Z"></path></svg>
-            <select id="langSelect" class="bg-transparent border-none text-[10px] font-bold focus:outline-none cursor-pointer text-blue-400 uppercase" onchange="changeLang(this.value)">
-                <option value="zh">繁體中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-            </select>
-        </div>
-    </div>
-
-    <header class="mb-6 px-2">
-        <div class="flex items-center gap-3 mb-1">
-            <select id="locationSelect" class="bg-transparent border-none text-2xl font-bold focus:outline-none cursor-pointer text-white appearance-none flex-grow" onchange="handleLocationChange(this.value)"></select>
-            <button onclick="openSearchModal()" class="bg-white/5 p-2 rounded-xl border border-white/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a8,8,0,0,1-8,8H136v24a8,8,0,0,1-16,0V136H96a8,8,0,0,1,0-16h24V96a8,8,0,0,1,16,0v24h24A8,8,0,0,1,168,128Z"></path></svg>
-            </button>
-        </div>
-        <div class="flex justify-between items-end">
-            <p id="currentDesc" class="opacity-50 text-[11px]"></p>
-            <div class="text-right">
-                <div class="flex items-baseline justify-end"><span id="mainTemp" class="text-5xl font-extralight tracking-tighter">--</span><span class="text-2xl font-light ml-1">°C</span></div>
-                <p id="mainRain" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest"></p>
+    <!-- 搜尋視窗 -->
+    <div id="search-modal" class="fixed inset-0 z-[5000] hidden items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+        <div class="zenith-card p-6 w-full max-w-lg shadow-2xl">
+            <h2 id="ui-search-title" class="text-xl font-black mb-4">新增地點</h2>
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="search-input" class="flex-grow bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:ring-2 ring-blue-500" placeholder="...">
+                <button onclick="performSearch()" class="bg-blue-600 px-6 py-3 rounded-xl font-black active:scale-95 transition">Go</button>
             </div>
+            <div id="search-results" class="max-h-60 overflow-y-auto space-y-2 no-scrollbar"></div>
+            <button onclick="toggleSearch(false)" class="w-full mt-4 py-2 text-white/40 font-bold hover:text-white" id="ui-cancel">取消</button>
+        </div>
+    </div>
+
+    <header class="max-w-7xl mx-auto mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+            <!-- 語系切換 -->
+            <div class="flex gap-2">
+                <button onclick="changeLang('zh')" id="lang-zh" class="btn-pill">正體中文</button>
+                <button onclick="changeLang('ja')" id="lang-ja" class="btn-pill">日本語</button>
+                <button onclick="changeLang('en')" id="lang-en" class="btn-pill">ENGLISH</button>
+            </div>
+
+            <!-- 模型顯示與切換 -->
+            <div class="flex flex-col items-end gap-1">
+                <div class="flex items-center gap-3">
+                    <span id="ui-model-label" class="text-[10px] font-black opacity-30 uppercase tracking-widest">Model Engine</span>
+                    <select id="model-selector" onchange="manualModel(this.value)" class="bg-blue-600/10 border border-blue-500/30 text-blue-400 text-xs font-black px-3 py-1.5 rounded-lg outline-none cursor-pointer">
+                        <option value="auto">AUTO (智慧判定)</option>
+                        <option value="jma_seamless">JMA (日本氣象廳)</option>
+                        <option value="kma_deterministic">KMA (韓國氣象廳)</option>
+                        <option value="ecmwf_ifs04">ECMWF (歐洲中心)</option>
+                        <option value="gfs_seamless">GFS (美國全球)</option>
+                    </select>
+                </div>
+                <div id="final-model-badge" class="text-[9px] font-mono text-blue-500/60 uppercase">Determining Optimum Path...</div>
+            </div>
+        </div>
+
+        <!-- 地點導覽 -->
+        <div class="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+            <div id="location-bar" class="flex gap-3"></div>
+            <button onclick="toggleSearch(true)" class="w-10 h-10 flex-shrink-0 bg-white/5 border border-white/10 rounded-full flex items-center justify-center hover:bg-white/10 transition">＋</button>
         </div>
     </header>
 
-    <!-- 12H 趨勢 -->
-    <section class="glass-card p-5 mb-4" onclick="showHourlyDetail()">
-        <h2 class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300 mb-4 flex justify-between">
-            <span id="label-12h">12H 氣溫與降雨趨勢</span>
-            <span id="label-details" class="opacity-40 font-normal">詳情 ▸</span>
-        </h2>
-        <div class="h-[160px]"><canvas id="hourlyChart"></canvas></div>
-    </section>
+    <main class="max-w-7xl mx-auto space-y-8">
+        <!-- 第一區塊：當前氣候與地圖 -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 zenith-card p-8 md:p-12 flex flex-col justify-between min-h-[400px]">
+                <div>
+                    <h1 id="display-city" class="text-4xl md:text-6xl font-black tracking-tighter mb-2">---</h1>
+                    <p id="display-time" class="text-xs font-bold opacity-30 uppercase tracking-[0.3em] mb-8">---</p>
+                    
+                    <div class="flex items-center gap-8">
+                        <div id="main-emoji" class="text-7xl md:text-9xl">☀️</div>
+                        <div>
+                            <div class="flex items-start">
+                                <span id="main-temp" class="text-7xl md:text-9xl font-black tracking-tighter">--</span>
+                                <span class="text-3xl font-black mt-4 ml-1 text-blue-500">°</span>
+                            </div>
+                            <div class="text-sm font-bold opacity-50"><span id="ui-feels">體感</span> <span id="main-feels">--</span>°C</div>
+                        </div>
+                    </div>
+                </div>
 
-    <!-- 今日數據 -->
-    <section class="mb-4" onclick="showDailyDetail(1)">
-        <div class="bg-blue-600/10 border border-blue-500/20 rounded-[30px] p-6">
-            <p id="label-today" class="text-[10px] font-black text-blue-300 uppercase tracking-[0.3em] mb-4">今日關鍵指標</p>
-            <div id="todayGrid" class="grid grid-cols-3 gap-y-6 text-center"></div>
-        </div>
-    </section>
+                <div class="grid grid-cols-2 gap-4 mt-12">
+                    <div class="bg-white/5 p-5 rounded-2xl border border-white/5">
+                        <div id="ui-rain-label" class="text-[9px] font-black opacity-30 uppercase tracking-widest mb-1">降雨量</div>
+                        <div class="text-2xl font-black text-blue-400">💧 <span id="main-rain">--</span><span class="text-xs ml-1 opacity-50">mm</span></div>
+                    </div>
+                    <div class="bg-white/5 p-5 rounded-2xl border border-white/5">
+                        <div id="ui-wind-label" class="text-[9px] font-black opacity-30 uppercase tracking-widest mb-1">風速</div>
+                        <div class="text-2xl font-black text-emerald-400">💨 <span id="main-wind">--</span><span class="text-xs ml-1 opacity-50">km/h</span></div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- 昨日回顧 -->
-    <section class="mb-4" onclick="showDailyDetail(0)">
-        <div class="bg-slate-800/40 border border-white/5 rounded-[30px] p-6 opacity-80">
-            <p id="label-yesterday" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">昨日氣候回顧</p>
-            <div id="yesterdayGrid" class="grid grid-cols-3 gap-y-6 text-center"></div>
-        </div>
-    </section>
+            <!-- 彩色靜態地圖替代區 (使用 Leaflet 即時渲染) -->
+            <div class="zenith-card p-4 flex flex-col items-center">
+                <div id="map"></div>
+                <div class="mt-4 text-[9px] font-black opacity-20 uppercase tracking-[0.4em]">Geo-Layer Level 09 / Active Rendering</div>
+            </div>
+        </section>
 
-    <!-- 8日趨勢 -->
-    <section class="glass-card p-5 mb-4" onclick="showWeeklySummary()">
-        <h2 class="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 mb-6 flex justify-between">
-            <span id="label-8d">8日 綜合趨勢分析</span>
-            <span id="label-stats" class="opacity-40 font-normal">統計 ▸</span>
-        </h2>
-        <div class="h-[240px]"><canvas id="dailyChart"></canvas></div>
-    </section>
+        <!-- 第二區塊：昨日與今日 -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 昨日 -->
+            <div class="zenith-card p-6 border-l-4 border-white/20">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="ui-yesterday" class="text-[10px] font-black opacity-40 uppercase tracking-widest">昨日回顧</h3>
+                    <span id="date-yes" class="text-[10px] font-mono opacity-20">---</span>
+                </div>
+                <div class="flex justify-between items-end">
+                    <div class="text-5xl opacity-20">🕰️</div>
+                    <div class="text-right">
+                        <div class="text-2xl font-black"><span id="yes-hilo">-- / --</span>°C</div>
+                        <div class="text-[10px] font-bold opacity-30 mt-1">Feels <span id="yes-feels-hilo">-- / --</span>°C</div>
+                        <div class="flex gap-4 justify-end mt-3 text-[10px] font-black opacity-40">
+                            <span>💧 <span id="yes-rain">--</span> mm</span>
+                            <span>💨 <span id="yes-wind">--</span> km/h</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 今日 -->
+            <div class="zenith-card p-6 border-l-4 border-blue-500 shadow-xl shadow-blue-500/5">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 id="ui-today" class="text-[10px] font-black text-blue-500 uppercase tracking-widest">今日預報</h3>
+                    <div id="temp-diff-tag" class="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/10">--</div>
+                </div>
+                <div class="flex justify-between items-end">
+                    <div id="today-emoji" class="text-5xl">☀️</div>
+                    <div class="text-right">
+                        <div class="text-2xl font-black text-blue-400"><span id="today-hilo">-- / --</span>°C</div>
+                        <div class="text-[10px] font-bold opacity-30 mt-1">Feels <span id="today-feels-hilo">-- / --</span>°C</div>
+                        <div class="flex gap-4 justify-end mt-3 text-[10px] font-black text-blue-400">
+                            <span>💧 <span id="today-rain">--</span> mm</span>
+                            <span>💨 <span id="today-wind">--</span> km/h</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <!-- 14-DAY LIST -->
-    <section class="glass-card p-6">
-        <h2 id="label-forecast" class="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 mb-4">未來 14 日預報清單</h2>
-        <div id="forecastList" class="text-[12px] space-y-1"></div>
-    </section>
+        <!-- 第三區塊：12小時趨勢 -->
+        <section>
+            <h3 id="ui-hourly-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-4 flex items-center gap-2">
+                <span class="w-4 h-[2px] bg-blue-500"></span> 12小時趨勢預報
+            </h3>
+            <div class="zenith-card p-6 overflow-x-auto no-scrollbar">
+                <div class="h-64 min-w-[800px]">
+                    <canvas id="hourly-chart"></canvas>
+                </div>
+            </div>
+        </section>
 
-    <footer class="mt-8 text-center text-[9px] opacity-20 tracking-[0.2em] uppercase pb-12 leading-relaxed">
-        Data: Open-Meteo API / OSM<br>
-        Optimized for Mobile Viewing
-    </footer>
+        <!-- 第四區塊：8日折線圖 -->
+        <section>
+            <h3 id="ui-8day-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-amber-500 mb-4 flex items-center gap-2">
+                <span class="w-4 h-[2px] bg-amber-500"></span> 8日趨勢分析 (含昨日)
+            </h3>
+            <div class="zenith-card p-6">
+                <div class="h-80 w-full">
+                    <canvas id="daily-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 第五區塊：14日深度預報 -->
+        <section>
+            <h3 id="ui-14day-title" class="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-4 flex items-center gap-2">
+                <span class="w-4 h-[2px] bg-blue-500"></span> 14日深度預報
+            </h3>
+            <div id="forecast-list" class="space-y-3"></div>
+        </section>
+    </main>
 
     <script>
-        const i18n = {
+        /**
+         * RetroWeather Zenith Engine
+         * 資料出處：Open-Meteo API, Nominatim Geocoding API
+         */
+
+        const I18N = {
             zh: {
-                sync: "同步", curPos: "📍 目前位置", model: "自動最佳預報模型", rainProb: "降雨機率",
-                label12h: "12H 氣溫與降雨趨勢", details: "詳情 ▸", today: "今日關鍵指標", yesterday: "昨日氣候回顧",
-                label8d: "8日 綜合趨勢分析", stats: "統計 ▸", forecast: "未來 14 日預報清單",
-                highLow: "高低溫", feelsLike: "體感最高", uv: "紫外線", wind: "最大風速", rainVol: "預估雨量",
-                modal12h: "未來 12 小時詳情", modalStats: "8日 綜合統計報告", modalYesterday: "昨日實測數據",
-                modalToday: "今日詳細預報", modalDetail: "氣候詳情", tempChange: "氣溫變動 (與前日相比)",
-                rise: "▲ 溫升", fall: "▼ 溫降", steady: "持平", back: "返回", search: "搜尋地點", placeholder: "搜尋城市名稱...",
-                locating: "定位中..."
+                current_loc: "目前位置", zhubei: "竹北", taichung: "台中", taipei: "台北", osaka: "大阪",
+                feels: "體感", rain: "降雨量", wind: "風速", yesterday: "昨日回顧", today: "今日預報",
+                hourly: "12小時趨勢預報", d8: "8日趨勢分析 (含昨日)", d14: "14日深度預報",
+                diff_vs: "較前日", search_title: "新增地點", cancel: "取消",
+                searching: "搜尋中...", no_results: "查無結果", search_placeholder: "請輸入城市名稱...",
+                temp: "氣溫", feels_label: "體感高低溫"
             },
             en: {
-                sync: "Sync", curPos: "📍 Current Location", model: "Auto Optimized Model", rainProb: "Precipitation",
-                label12h: "12H Temp & Rain Trend", details: "Details ▸", today: "Today's Metrics", yesterday: "Yesterday's Review",
-                label8d: "8-Day Trend Analysis", stats: "Stats ▸", forecast: "14-Day Forecast List",
-                highLow: "H/L Temp", feelsLike: "Max Feels", uv: "UV Index", wind: "Max Wind", rainVol: "Precipitation",
-                modal12h: "Next 12 Hours", modalStats: "Weekly Summary", modalYesterday: "Yesterday's Actuals",
-                modalToday: "Today's Forecast", modalDetail: "Climate Details", tempChange: "Temp Change (vs Prev)",
-                rise: "▲ Rise", fall: "▼ Fall", steady: "Steady", back: "Back", search: "Search", placeholder: "Search city...",
-                locating: "Locating..."
+                current_loc: "Current", zhubei: "Zhubei", taichung: "Taichung", taipei: "Taipei", osaka: "Osaka",
+                feels: "Feels", rain: "Rain", wind: "Wind", yesterday: "Yesterday", today: "Today",
+                hourly: "12-Hour Trend", d8: "8-Day Trend (Inc. Past)", d14: "14-Day Deep Forecast",
+                diff_vs: "vs Prev", search_title: "Add Location", cancel: "Cancel",
+                searching: "Searching...", no_results: "No results", search_placeholder: "Enter city name...",
+                temp: "Temp", feels_label: "Feels H/L"
             },
             ja: {
-                sync: "同期", curPos: "📍 現在地", model: "自動最適化モデル", rainProb: "降水確率",
-                label12h: "12時間 気温・降水トレンド", details: "詳細 ▸", today: "今日の指標", yesterday: "昨日の振り返り",
-                label8d: "8日間 総合トレンド", stats: "統計 ▸", forecast: "14日間 予報リスト",
-                highLow: "最高/最低", feelsLike: "体感最高", uv: "紫外線", wind: "最大風速", rainVol: "降水量",
-                modal12h: "12時間の詳細", modalStats: "週間統計レポート", modalYesterday: "昨日の實測データ",
-                modalToday: "今日の詳細予報", modalDetail: "気象詳細", tempChange: "前日比の気温変動",
-                rise: "▲ 上昇", fall: "▼ 下落", steady: "変化なし", back: "戻る", search: "場所を検索", placeholder: "都市名を検索...",
-                locating: "位置取得中..."
+                current_loc: "現在地", zhubei: "竹北", taichung: "台中国", taipei: "台北", osaka: "大阪",
+                feels: "体感", rain: "降水量", wind: "風速", yesterday: "昨日の回顧", today: "今日の予報",
+                hourly: "12時間趨勢", d8: "8日間トレンド (昨日含む)", d14: "14日間詳細予報",
+                diff_vs: "前日比", search_title: "地点追加", cancel: "キャンセル",
+                searching: "検索中...", no_results: "結果なし", search_placeholder: "都市名を入力...",
+                temp: "気温", feels_label: "体感高低"
             }
         };
 
-        const weatherIcons = { 0: "☀️", 1: "🌤", 2: "⛅", 3: "☁️", 45: "🌫", 48: "🌫", 51: "🌦", 53: "🌦", 55: "🌧", 61: "🌧", 63: "🌧", 65: "⛈", 71: "❄️", 73: "❄️", 75: "❄️", 80: "🌦", 81: "🌧", 82: "⛈", 95: "⛈", 96: "⛈", 99: "⛈" };
-        let currentLang = localStorage.getItem('weather_lang') || 'zh';
-        let globalWeatherData = null;
-        let currentCoords = { lat: null, lon: null, label: 'zhubei', resolvedName: null };
-        
-        const defaultLocations = [
-            { id: 'gps', zh: '📍 目前位置', en: '📍 Current Location', ja: '📍 現在地', lat: null, lon: null },
-            { id: 'zhubei', zh: '竹北市', en: 'Zhubei', ja: '竹北', lat: 24.83, lon: 121.01 },
-            { id: 'taipei', zh: '台北市', en: 'Taipei', ja: '台北', lat: 25.03, lon: 121.56 },
-            { id: 'taichung', zh: '台中市', en: 'Taichung', ja: '台中', lat: 24.14, lon: 120.67 },
-            { id: 'osaka', zh: '大阪', en: 'Osaka', ja: '大阪', lat: 34.69, lon: 135.50 }
-        ];
+        const STATE = {
+            lang: localStorage.getItem('zenith_lang') || 'zh',
+            activeId: 'gps',
+            coords: { lat: 24.83, lon: 121.01 },
+            model: localStorage.getItem('zenith_model') || 'auto',
+            locations: JSON.parse(localStorage.getItem('zenith_locs')) || [
+                { id: 'gps', name: 'current_loc', lat: null, lon: null },
+                { id: 'zhubei', name: 'zhubei', lat: 24.83, lon: 121.01 },
+                { id: 'taichung', name: 'taichung', lat: 24.14, lon: 120.67 },
+                { id: 'taipei', name: 'taipei', lat: 25.03, lon: 121.56 },
+                { id: 'osaka', name: 'osaka', lat: 34.69, lon: 135.50 }
+            ],
+            map: null,
+            marker: null,
+            charts: {}
+        };
 
-        let customLocations = JSON.parse(localStorage.getItem('weather_locations_custom_v4')) || [];
-        let allLocations = [...defaultLocations, ...customLocations];
-        
-        Chart.register(ChartDataLabels);
-        let hourlyChart, dailyChart;
+        // 安全數值處理
+        const safe = (val, def = 0) => (val === null || val === undefined || isNaN(val)) ? def : val;
 
-        async function init() {
-            document.getElementById('langSelect').value = currentLang;
-            renderLocationDropdown();
-            updateStaticText();
-            requestLocation();
-        }
-
-        function updateStaticText() {
-            const t = i18n[currentLang];
-            document.getElementById('label-12h').innerText = t.label12h;
-            document.getElementById('label-details').innerText = t.details;
-            document.getElementById('label-today').innerText = t.today;
-            document.getElementById('label-yesterday').innerText = t.yesterday;
-            document.getElementById('label-8d').innerText = t.label8d;
-            document.getElementById('label-stats').innerText = t.stats;
-            document.getElementById('label-forecast').innerText = t.forecast;
-            document.getElementById('modalCloseBtn').innerText = t.back;
-        }
-
-        function changeLang(lang) {
-            currentLang = lang;
-            localStorage.setItem('weather_lang', lang);
-            updateStaticText();
-            renderLocationDropdown();
-            // 如果當前是 GPS 且已經解析過地名，重新解析以獲得正確語言的地名
-            if (currentCoords.label === 'gps') {
-                resolveGeoName(currentCoords.lat, currentCoords.lon);
-            }
-            if (globalWeatherData) updateUI(globalWeatherData);
-        }
-
-        async function requestLocation() {
-            navigator.geolocation.getCurrentPosition(
-                async p => {
-                    const lat = p.coords.latitude;
-                    const lon = p.coords.longitude;
-                    currentCoords = { lat, lon, label: 'gps', resolvedName: i18n[currentLang].locating };
-                    fetchAll();
-                    await resolveGeoName(lat, lon);
-                },
-                () => {
-                    currentCoords = { lat: 24.83, lon: 121.01, label: 'zhubei', resolvedName: null };
-                    fetchAll();
+        // 指數退避重試
+        async function fetchRetry(url, retries = 5) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(res.status);
+                    return await res.json();
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
                 }
-            );
-        }
-
-        async function resolveGeoName(lat, lon) {
-            try {
-                const langParam = currentLang === 'zh' ? 'zh-TW' : (currentLang === 'ja' ? 'ja' : 'en');
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1&accept-language=${langParam}`);
-                const data = await res.json();
-                // 優先取城市、鎮、或郊區名稱
-                const addr = data.address;
-                const name = addr.city || addr.town || addr.village || addr.suburb || addr.district || addr.state;
-                currentCoords.resolvedName = name || i18n[currentLang].curPos;
-                if (globalWeatherData) updateUI(globalWeatherData);
-            } catch (e) {
-                currentCoords.resolvedName = i18n[currentLang].curPos;
             }
         }
 
-        async function fetchAll() {
-            const { lat, lon } = currentCoords;
-            try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,windspeed_10m_max,relative_humidity_2m_max,precipitation_sum&timezone=auto&past_days=1&forecast_days=14`;
-                const res = await fetch(url);
-                globalWeatherData = await res.json();
-                updateUI(globalWeatherData);
-            } catch (err) { console.error(err); }
+        // 地緣模型判定
+        function getAutoModel(lat, lon) {
+            // 台灣全境 (鎖定 JMA)
+            if (lat >= 21.8 && lat <= 25.5 && lon >= 119.5 && lon <= 122.5) return 'jma_seamless';
+            
+            // 日本全境 (JMA)
+            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
+            
+            // 韓國全境 (KMA)
+            if (lat >= 33 && lat <= 43 && lon >= 124 && lon <= 132) return 'kma_deterministic';
+
+            // 歐洲 (ECMWF 範圍估算)
+            if (lat >= 35 && lat <= 72 && lon >= -25 && lon <= 45) return 'ecmwf_ifs04';
+
+            // 美洲 (GFS 範圍估算)
+            if (lat >= 7 && lat <= 72 && lon >= -170 && lon <= -50) return 'gfs_seamless';
+
+            // 距離判定：找出最近的氣象中心
+            const hubs = [
+                { id: 'jma_seamless', lat: 35.6, lon: 139.7 }, // 東京
+                { id: 'kma_deterministic', lat: 37.5, lon: 126.9 }, // 首爾
+                { id: 'ecmwf_ifs04', lat: 51.4, lon: -1.3 }, // 倫敦 (ECMWF)
+                { id: 'gfs_seamless', lat: 38.9, lon: -77.0 } // 華盛頓
+            ];
+            
+            let best = 'ecmwf_ifs04';
+            let minDist = Infinity;
+            hubs.forEach(h => {
+                const d = Math.sqrt(Math.pow(lat - h.lat, 2) + Math.pow(lon - h.lon, 2));
+                if (d < minDist) { minDist = d; best = h.id; }
+            });
+            return best;
         }
 
-        function updateUI(data) {
-            const t = i18n[currentLang];
-            const curIdx = 24 + new Date().getHours();
-            const daily = data.daily;
-            const hourly = data.hourly;
-            
-            let displayName = "";
-            if (currentCoords.label === 'gps') {
-                displayName = currentCoords.resolvedName || t.curPos;
-            } else {
-                const locObj = allLocations.find(l => l.id === currentCoords.label);
-                displayName = locObj ? (locObj[currentLang] || locObj.zh) : currentCoords.label;
-            }
-
-            document.getElementById('syncTime').innerText = `${t.sync}: ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-            document.getElementById('mainTemp').innerText = Math.round(hourly.temperature_2m[curIdx]);
-            document.getElementById('mainRain').innerText = `${t.rainProb} ${hourly.precipitation_probability[curIdx]}%`;
-            document.getElementById('currentDesc').innerText = `${displayName} · ${t.model}`;
-
-            const grid = (idx) => `
-                <div><p class="text-[9px] opacity-40 mb-1">${t.highLow}</p><p class="text-sm font-bold">${Math.round(daily.temperature_2m_min[idx])}° / ${Math.round(daily.temperature_2m_max[idx])}°</p></div>
-                <div><p class="text-[9px] opacity-40 mb-1">${t.feelsLike}</p><p class="text-sm font-bold text-orange-400">${Math.round(daily.apparent_temperature_max[idx])}°</p></div>
-                <div><p class="text-[9px] opacity-40 mb-1">${t.rainProb}</p><p class="text-sm font-bold text-blue-400">${daily.precipitation_probability_max[idx]}%</p></div>
-                <div><p class="text-[9px] opacity-40 mb-1">${t.uv}</p><p class="text-sm font-bold">${daily.uv_index_max[idx].toFixed(1)}</p></div>
-                <div><p class="text-[9px] opacity-40 mb-1">${t.wind}</p><p class="text-sm font-bold">${Math.round(daily.windspeed_10m_max[idx])} km/h</p></div>
-                <div><p class="text-[9px] opacity-40 mb-1">${t.rainVol}</p><p class="text-sm font-bold">${daily.precipitation_sum[idx].toFixed(1)} mm</p></div>`;
-
-            document.getElementById('todayGrid').innerHTML = grid(1);
-            document.getElementById('yesterdayGrid').innerHTML = grid(0);
-            
-            renderCharts(data, curIdx);
-            renderList(daily);
+        function getWeatherEmoji(code) {
+            const c = safe(code);
+            if (c <= 1) return '☀️';
+            if (c <= 3) return '🌤️';
+            if (c <= 48) return '🌫️';
+            if (c <= 67) return '🌧️';
+            if (c <= 77) return '❄️';
+            if (c <= 82) return '🌦️';
+            return '⛈️';
         }
 
-        function renderCharts(data, curIdx) {
-            const h = data.hourly;
-            const d = data.daily;
-
-            const ctxH = document.getElementById('hourlyChart').getContext('2d');
-            if(hourlyChart) hourlyChart.destroy();
-            const sliceT = h.temperature_2m.slice(curIdx, curIdx+12);
-            const sliceP = h.precipitation_probability.slice(curIdx, curIdx+12);
+        // 初始化與切換
+        async function changeLang(l) {
+            STATE.lang = l;
+            localStorage.setItem('zenith_lang', l);
             
-            hourlyChart = new Chart(ctxH, {
-                data: {
-                    labels: h.time.slice(curIdx, curIdx+12).map(t => new Date(t).getHours()+":00"),
-                    datasets: [
-                        { type:'line', data: sliceT, borderColor:'#3b82f6', borderWidth:3, tension:0.4, yAxisID:'yT', datalabels:{ align:'top', color:'#fff', font:{weight:'bold'}, formatter: v=>Math.round(v)+'°'} },
-                        { type:'bar', data: sliceP, backgroundColor:'rgba(59, 130, 246, 0.25)', yAxisID:'yP', datalabels:{ display:false } }
-                    ]
-                },
-                options: { 
-                    responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, 
-                    scales:{ 
-                        x:{ticks:{color:'rgba(255,255,255,0.3)',font:{size:9}},grid:{display:false}}, 
-                        yT:{display:false, min: Math.min(...sliceT) - 3, max: Math.max(...sliceT) + 3},
-                        yP:{display:false, min:0, max:100}
-                    } 
-                }
+            // 更新 UI 靜態文字
+            const t = I18N[l];
+            document.getElementById('ui-search-title').innerText = t.search_title;
+            document.getElementById('search-input').placeholder = t.search_placeholder;
+            document.getElementById('ui-cancel').innerText = t.cancel;
+            document.getElementById('ui-feels').innerText = t.feels;
+            document.getElementById('ui-rain-label').innerText = t.rain;
+            document.getElementById('ui-wind-label').innerText = t.wind;
+            document.getElementById('ui-yesterday').innerText = t.yesterday;
+            document.getElementById('ui-today').innerText = t.today;
+            document.getElementById('ui-hourly-title').innerHTML = `<span class="w-4 h-[2px] bg-blue-500"></span> ${t.hourly}`;
+            document.getElementById('ui-8day-title').innerHTML = `<span class="w-4 h-[2px] bg-amber-500"></span> ${t.d8}`;
+            document.getElementById('ui-14day-title').innerHTML = `<span class="w-4 h-[2px] bg-blue-500"></span> ${t.d14}`;
+            
+            // 按鈕狀態
+            document.querySelectorAll('.btn-pill').forEach(b => b.classList.remove('btn-active'));
+            document.getElementById('lang-' + l).classList.add('btn-active');
+
+            renderLocationBar();
+            refreshWeather();
+        }
+
+        function manualModel(m) {
+            STATE.model = m;
+            localStorage.setItem('zenith_model', m);
+            refreshWeather();
+        }
+
+        async function refreshWeather() {
+            const loader = document.getElementById('loader');
+            loader.style.opacity = '1';
+            loader.style.pointerEvents = 'auto';
+
+            const { lat, lon } = STATE.coords;
+            const modelToUse = STATE.model === 'auto' ? getAutoModel(lat, lon) : STATE.model;
+            document.getElementById('final-model-badge').innerText = `ENGINE: ${modelToUse.toUpperCase()}`;
+
+            // API 參數組合
+            const params = new URLSearchParams({
+                latitude: lat,
+                longitude: lon,
+                hourly: 'temperature_2m,apparent_temperature,precipitation,weathercode',
+                daily: 'weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max',
+                timezone: 'auto',
+                past_days: 1,
+                forecast_days: 14,
+                models: modelToUse
             });
 
-            const ctxD = document.getElementById('dailyChart').getContext('2d');
-            if(dailyChart) dailyChart.destroy();
-            const sliceMax = d.temperature_2m_max.slice(0,8);
-            const sliceMin = d.temperature_2m_min.slice(0,8);
-            const sliceProb = d.precipitation_probability_max.slice(0,8);
+            try {
+                const data = await fetchRetry(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+                
+                // 處理多模型資料結構差異
+                const h = data.hourly[modelToUse] || data.hourly;
+                const d = data.daily[modelToUse] || data.daily;
 
-            dailyChart = new Chart(ctxD, {
-                data: {
-                    labels: d.time.slice(0,8).map((t,i) => i===0 ? (currentLang==='zh'?'昨日':(currentLang==='en'?'Yest':'昨')) : (i===1 ? (currentLang==='zh'?'今日':(currentLang==='en'?'Today':'今')) : new Date(t).getDate()+'')),
-                    datasets: [
-                        { type:'line', data:sliceMax, borderColor:'#fbbf24', borderWidth:2, tension:0.4, yAxisID:'yT', datalabels:{align:'top', color:'#fbbf24', formatter:v=>v+'°'} },
-                        { type:'line', data:sliceMin, borderColor:'#38bdf8', borderWidth:2, tension:0.4, yAxisID:'yT', datalabels:{align:'bottom', color:'#38bdf8', formatter:v=>v+'°'} },
-                        { type:'bar', data:sliceProb, backgroundColor:'rgba(59, 130, 246, 0.25)', yAxisID:'yR', datalabels:{align:'bottom', offset:12, color:'rgba(59, 130, 246, 0.7)', font:{size:10, weight:'bold'}, formatter:v=>v>0?v+'%':''} }
-                    ]
-                },
-                options: { 
-                    responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, 
-                    scales:{ 
-                        x:{ticks:{color:'rgba(255,255,255,0.2)'},grid:{color:'rgba(255,255,255,0.05)'}}, 
-                        yT:{display:false, min:Math.min(...sliceMin)-5, max:Math.max(...sliceMax)+5}, 
-                        yR:{display:false, min:0, max:100} 
-                    } 
-                }
-            });
-        }
-
-        function renderList(d) {
-            const list = document.getElementById('forecastList');
-            list.innerHTML = '';
-            for(let i=1; i<15; i++) {
-                const date = new Date(d.time[i]);
-                const dayLabel = i===1 ? (currentLang==='zh'?'今日':(currentLang==='en'?'Today':'今日')) : (date.getMonth()+1)+'/'+date.getDate();
-                list.innerHTML += `
-                    <div class="grid grid-cols-6 items-center py-3 border-b border-white/5" onclick="showDailyDetail(${i})">
-                        <span class="font-bold opacity-40 col-span-1">${dayLabel}</span>
-                        <span class="text-lg text-center col-span-1">${weatherIcons[d.weathercode[i]]||"❓"}</span>
-                        <span class="text-blue-400 font-bold text-center col-span-1">${d.precipitation_probability_max[i]}%</span>
-                        <span class="text-orange-300 font-bold text-center col-span-1">${Math.round(d.temperature_2m_max[i])}°</span>
-                        <span class="text-slate-500 text-center col-span-1">${Math.round(d.apparent_temperature_max[i])}°</span>
-                        <span class="text-right text-slate-400 col-span-1 text-[10px]">${Math.round(d.windspeed_10m_max[i])}</span>
-                    </div>`;
-            }
-        }
-
-        function showHourlyDetail() {
-            const h = globalWeatherData.hourly;
-            const curIdx = 24 + new Date().getHours();
-            let content = "<div class='space-y-2'>";
-            for(let i=curIdx; i<curIdx+12; i++) {
-                content += `<div class='flex justify-between p-3 bg-white/5 rounded-xl border-l-4 border-blue-500'>
-                    <span class='font-mono text-blue-300'>${new Date(h.time[i]).getHours()}:00</span>
-                    <span class='font-bold'>${h.temperature_2m[i]}°C</span>
-                    <span class='text-blue-400 font-medium'>${h.precipitation_probability[i]}%</span>
-                    <span class='opacity-40 text-[11px]'>${h.windspeed_10m[i]}km/h</span>
-                </div>`;
-            }
-            content += "</div>";
-            openModal(i18n[currentLang].modal12h, content);
-        }
-
-        function showWeeklySummary() {
-            const d = globalWeatherData.daily;
-            const t = i18n[currentLang];
-            const sliceH = d.temperature_2m_max.slice(1,8);
-            const sliceL = d.temperature_2m_min.slice(1,8);
-            const sumRain = d.precipitation_sum.slice(1,8).reduce((a,b)=>a+b, 0);
-            const content = `
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="p-4 bg-yellow-500/10 rounded-2xl border border-yellow-500/20 text-center">
-                        <p class="text-[10px] opacity-50">${t.highLow} (Max)</p><p class="text-2xl font-black text-yellow-500">${Math.max(...sliceH)}°C</p>
-                    </div>
-                    <div class="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-center">
-                        <p class="text-[10px] opacity-50">${t.highLow} (Min)</p><p class="text-2xl font-black text-blue-500">${Math.min(...sliceL)}°C</p>
-                    </div>
-                    <div class="p-4 bg-white/5 rounded-2xl text-center col-span-2">
-                        <p class="text-[10px] opacity-50">${t.rainVol} (7D Sum)</p><p class="text-2xl font-bold text-blue-300">${sumRain.toFixed(1)} mm</p>
-                    </div>
-                </div>`;
-            openModal(t.modalStats, content);
-        }
-
-        function showDailyDetail(idx) {
-            const d = globalWeatherData.daily;
-            const t = i18n[currentLang];
-            const isYesterday = (idx === 0);
-            const label = isYesterday ? t.modalYesterday : (idx === 1 ? t.modalToday : t.modalDetail);
-            
-            let extraHtml = "";
-            if (!isYesterday) {
-                const diff = (d.temperature_2m_max[idx] - d.temperature_2m_max[idx-1]).toFixed(1);
-                extraHtml = `
-                    <div class="p-5 bg-white/5 rounded-2xl text-center mb-4">
-                        <p class="text-[11px] opacity-40">${t.tempChange}</p>
-                        <p class="text-2xl font-bold ${diff > 0 ? 'text-red-400' : (diff < 0 ? 'text-blue-400' : 'text-white')}">
-                            ${diff > 0 ? t.rise : (diff < 0 ? t.fall : t.steady)} ${Math.abs(diff)}°C
-                        </p>
-                    </div>`;
-            }
-
-            const content = `
-                ${extraHtml}
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="p-4 bg-white/5 rounded-2xl text-center"><p class="text-[10px] opacity-40">${t.feelsLike}</p><p class="text-lg font-bold">${d.apparent_temperature_max[idx]}°C</p></div>
-                    <div class="p-4 bg-white/5 rounded-2xl text-center"><p class="text-[10px] opacity-40">${t.rainVol}</p><p class="text-lg font-bold">${d.precipitation_sum[idx]}mm</p></div>
-                    <div class="p-4 bg-white/5 rounded-2xl text-center"><p class="text-[10px] opacity-40">${t.uv}</p><p class="text-lg font-bold">${d.uv_index_max[idx]}</p></div>
-                    <div class="p-4 bg-white/5 rounded-2xl text-center"><p class="text-[10px] opacity-40">${t.wind}</p><p class="text-lg font-bold">${d.windspeed_10m_max[idx]}km/h</p></div>
-                </div>`;
-            openModal(label, content);
-        }
-
-        function openModal(title, body) {
-            document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalBody').innerHTML = body;
-            document.getElementById('infoModal').classList.add('active');
-        }
-
-        function closeModal() { document.getElementById('infoModal').classList.remove('active'); }
-
-        function renderLocationDropdown() {
-            const select = document.getElementById('locationSelect');
-            select.innerHTML = allLocations.map(loc => `<option value="${loc.id}">${loc[currentLang] || loc.zh}</option>`).join('');
-            select.value = currentCoords.label;
-        }
-
-        async function handleLocationChange(id) {
-            if(id === 'gps') {
-                requestLocation();
-            } else {
-                const loc = allLocations.find(l => l.id === id);
-                currentCoords = { lat: loc.lat, lon: loc.lon, label: loc.id, resolvedName: null };
-                fetchAll();
-            }
-        }
-
-        async function openSearchModal() {
-            const t = i18n[currentLang];
-            openModal(t.search, `<input type="text" id="cityInput" class="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white outline-none" placeholder="${t.placeholder}"><div id="results" class="mt-4 space-y-2"></div>`);
-            const input = document.getElementById('cityInput');
-            input.focus();
-            input.addEventListener('input', () => {
-                clearTimeout(this.timer);
-                this.timer = setTimeout(async () => {
-                    if (input.value.length < 2) return;
-                    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5&accept-language=${currentLang}`);
-                    const d = await r.json();
-                    document.getElementById('results').innerHTML = d.map(i => `<div onclick="addLoc('${i.display_name}',${i.lat},${i.lon})" class="p-4 bg-white/5 rounded-xl text-sm">${i.display_name}</div>`).join('');
+                renderMainInfo(h, d);
+                renderVisuals(h, d);
+                render14DayList(d);
+                syncMap(lat, lon);
+                resolveCityName(lat, lon);
+            } catch (err) {
+                console.error("Zenith Engine Error:", err);
+            } finally {
+                setTimeout(() => {
+                    loader.style.opacity = '0';
+                    loader.style.pointerEvents = 'none';
                 }, 600);
+            }
+        }
+
+        function renderMainInfo(h, d) {
+            const now = new Date();
+            const hIdx = Math.max(0, h.time.findIndex(t => new Date(t) > now) - 1);
+
+            document.getElementById('main-temp').innerText = Math.round(safe(h.temperature_2m[hIdx]));
+            document.getElementById('main-feels').innerText = Math.round(safe(h.apparent_temperature[hIdx]));
+            document.getElementById('main-emoji').innerText = getWeatherEmoji(h.weathercode[hIdx]);
+            document.getElementById('main-rain').innerText = safe(h.precipitation[hIdx]).toFixed(1);
+            document.getElementById('main-wind').innerText = Math.round(safe(d.windspeed_10m_max[1]));
+            document.getElementById('display-time').innerText = now.toLocaleString(STATE.lang === 'zh' ? 'zh-TW' : (STATE.lang === 'ja' ? 'ja-JP' : 'en-US'));
+
+            // 昨日
+            document.getElementById('date-yes').innerText = d.time[0];
+            document.getElementById('yes-hilo').innerText = `${Math.round(safe(d.temperature_2m_max[0]))} / ${Math.round(safe(d.temperature_2m_min[0]))}`;
+            document.getElementById('yes-feels-hilo').innerText = `${Math.round(safe(d.apparent_temperature_max[0]))} / ${Math.round(safe(d.apparent_temperature_min[0]))}`;
+            document.getElementById('yes-rain').innerText = safe(d.precipitation_sum[0]).toFixed(1);
+            document.getElementById('yes-wind').innerText = Math.round(safe(d.windspeed_10m_max[0]));
+
+            // 今日
+            document.getElementById('today-hilo').innerText = `${Math.round(safe(d.temperature_2m_max[1]))} / ${Math.round(safe(d.temperature_2m_min[1]))}`;
+            document.getElementById('today-feels-hilo').innerText = `${Math.round(safe(d.apparent_temperature_max[1]))} / ${Math.round(safe(d.apparent_temperature_min[1]))}`;
+            document.getElementById('today-emoji').innerText = getWeatherEmoji(d.weathercode[1]);
+            document.getElementById('today-rain').innerText = safe(d.precipitation_sum[1]).toFixed(1);
+            document.getElementById('today-wind').innerText = Math.round(safe(d.windspeed_10m_max[1]));
+
+            // 氣溫變化
+            const diff = safe(d.temperature_2m_max[1]) - safe(d.temperature_2m_max[0]);
+            const diffTag = document.getElementById('temp-diff-tag');
+            diffTag.className = `text-[10px] font-black px-2 py-0.5 rounded ${diff >= 0 ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`;
+            diffTag.innerText = `${I18N[STATE.lang].diff_vs} ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}°`;
+        }
+
+        function renderVisuals(h, d) {
+            Chart.register(ChartDataLabels);
+            const now = new Date();
+            const start = Math.max(0, h.time.findIndex(t => new Date(t) > now) - 1);
+            const end = start + 12;
+
+            // 12小時趨勢
+            const hLabels = h.time.slice(start, end).map(t => new Date(t).getHours() + ":00");
+            const hTemp = h.temperature_2m.slice(start, end);
+            const hFeels = h.apparent_temperature.slice(start, end);
+            const hRain = h.precipitation.slice(start, end);
+            const hCodes = h.weathercode.slice(start, end);
+
+            if (STATE.charts.hourly) STATE.charts.hourly.destroy();
+            STATE.charts.hourly = new Chart(document.getElementById('hourly-chart'), {
+                data: {
+                    labels: hLabels,
+                    datasets: [
+                        { type: 'line', data: hTemp, borderColor: '#3b82f6', borderWidth: 3, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#fff', datalabels: { align: 'top', color: '#fff', font: { weight: 'bold' } } },
+                        { type: 'line', data: hFeels, borderColor: 'rgba(59, 130, 246, 0.3)', borderWidth: 1, borderDash: [3, 3], tension: 0.4, pointRadius: 0, datalabels: { display: false } },
+                        { type: 'bar', data: hRain, backgroundColor: 'rgba(59, 130, 246, 0.15)', yAxisID: 'yRain', datalabels: { align: 'top', color: '#60a5fa', formatter: v => v > 0 ? v + 'm' : '' } }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, 
+                        tooltip: { enabled: true },
+                        datalabels: { 
+                            formatter: (v, ctx) => {
+                                if (ctx.datasetIndex === 0) return getWeatherEmoji(hCodes[ctx.dataIndex]) + "\n" + Math.round(v) + "°";
+                                return "";
+                            },
+                            font: { size: 10 }, textAlign: 'center'
+                        }
+                    },
+                    scales: { y: { display: false, suggestedMin: Math.min(...hTemp) - 2 }, yRain: { display: false, max: 20 }, x: { grid: { display: false }, ticks: { color: '#475569' } } }
+                }
+            });
+
+            // 8日趨勢
+            const dLabels = d.time.slice(0, 8).map((t, i) => i === 0 ? I18N[STATE.lang].yesterday : t.slice(5).replace('-', '/'));
+            const dMax = d.temperature_2m_max.slice(0, 8);
+            const dMin = d.temperature_2m_min.slice(0, 8);
+            const dRain = d.precipitation_sum.slice(0, 8);
+            const dCodes = d.weathercode.slice(0, 8);
+
+            if (STATE.charts.daily) STATE.charts.daily.destroy();
+            STATE.charts.daily = new Chart(document.getElementById('daily-chart'), {
+                data: {
+                    labels: dLabels,
+                    datasets: [
+                        { type: 'line', data: dMax, borderColor: '#fbbf24', borderWidth: 4, tension: 0.4, datalabels: { align: 'top', color: '#fff', font: { weight: '900' } } },
+                        { type: 'line', data: dMin, borderColor: '#3b82f6', borderWidth: 2, tension: 0.4, datalabels: { align: 'bottom', color: '#60a5fa' } },
+                        { type: 'bar', data: dRain, backgroundColor: 'rgba(59, 130, 246, 0.1)', yAxisID: 'yR', datalabels: { 
+                            align: 'top', color: '#fff', offset: -20, font: { size: 14 }, 
+                            formatter: (v, ctx) => getWeatherEmoji(dCodes[ctx.dataIndex]) + (v > 0 ? `\n${v.toFixed(1)}m` : '') 
+                        } }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { display: false, suggestedMin: Math.min(...dMin) - 5 }, yR: { display: false, max: 100 }, x: { grid: { display: false }, ticks: { color: '#64748b' } } }
+                }
             });
         }
 
-        window.addLoc = (name, lat, lon) => {
-            const short = name.split(',')[0];
-            const id = 'c_'+Date.now();
-            const newLoc = { id, zh: short, en: short, ja: short, lat, lon };
-            customLocations.push(newLoc);
-            localStorage.setItem('weather_locations_custom_v4', JSON.stringify(customLocations));
-            allLocations = [...defaultLocations, ...customLocations];
-            renderLocationDropdown();
-            document.getElementById('locationSelect').value = id;
-            currentCoords = { lat, lon, label: id, resolvedName: null };
-            fetchAll();
-            closeModal();
+        function render14DayList(d) {
+            const list = document.getElementById('forecast-list');
+            list.innerHTML = '';
+            for (let i = 1; i < d.time.length; i++) {
+                const diff = safe(d.temperature_2m_max[i]) - safe(d.temperature_2m_max[i-1]);
+                const card = document.createElement('div');
+                card.className = "zenith-card p-5 flex flex-col sm:flex-row justify-between items-center gap-4 hover:bg-white/5 transition";
+                
+                const dateParts = d.time[i].split('-');
+                const dateLabel = `${dateParts[1]}/${dateParts[2]}`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-6 w-full sm:w-auto">
+                        <div class="text-center min-w-[50px]">
+                            <div class="text-[9px] font-black opacity-30">${dateLabel}</div>
+                            <div class="text-3xl mt-1">${getWeatherEmoji(d.weathercode[i])}</div>
+                        </div>
+                        <div class="flex-grow">
+                            <div class="text-xl font-black">${Math.round(safe(d.temperature_2m_max[i]))}° <span class="text-xs opacity-30 font-bold">${Math.round(safe(d.temperature_2m_min[i]))}°</span></div>
+                            <div class="text-[9px] font-black ${diff >= 0 ? 'text-red-400' : 'text-blue-400'} uppercase mt-0.5">
+                                ${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}° ${I18N[STATE.lang].diff_vs}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 items-center w-full sm:w-auto justify-between border-t sm:border-t-0 border-white/5 pt-3 sm:pt-0">
+                        <div class="text-right">
+                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].feels_label}</div>
+                            <div class="text-xs font-bold">${Math.round(safe(d.apparent_temperature_max[i]))}° / ${Math.round(safe(d.apparent_temperature_min[i]))}°</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].rain}</div>
+                            <div class="text-xs font-bold text-blue-400">${safe(d.precipitation_sum[i]).toFixed(1)} mm</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[8px] font-black opacity-20 uppercase tracking-tighter">${I18N[STATE.lang].wind}</div>
+                            <div class="text-xs font-bold text-emerald-500">${Math.round(safe(d.windspeed_10m_max[i]))} k</div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            }
         }
 
-        window.onload = init;
+        // 地圖處理
+        function syncMap(lat, lon) {
+            if (!STATE.map) {
+                STATE.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lon], 9);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(STATE.map);
+                STATE.marker = L.marker([lat, lon]).addTo(STATE.map);
+            } else {
+                STATE.map.setView([lat, lon], 9);
+                STATE.marker.setLatLng([lat, lon]);
+            }
+            setTimeout(() => STATE.map.invalidateSize(), 300);
+        }
+
+        async function resolveCityName(lat, lon) {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=${STATE.lang}`);
+                const data = await res.json();
+                const name = data.address.city || data.address.town || data.address.village || data.address.suburb || data.address.state || "Uncharted";
+                document.getElementById('display-city').innerText = name.toUpperCase();
+            } catch {
+                document.getElementById('display-city').innerText = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+            }
+        }
+
+        // 導覽列與搜尋
+        function renderLocationBar() {
+            const bar = document.getElementById('location-bar');
+            bar.innerHTML = '';
+            STATE.locations.forEach(loc => {
+                const btn = document.createElement('button');
+                btn.className = `btn-pill whitespace-nowrap ${STATE.activeId === loc.id ? 'btn-active' : 'bg-white/5 hover:bg-white/10'}`;
+                btn.innerText = (I18N[STATE.lang][loc.name] || loc.name).toUpperCase();
+                btn.onclick = () => selectLocation(loc.id);
+                bar.appendChild(btn);
+            });
+        }
+
+        function selectLocation(id) {
+            STATE.activeId = id;
+            const loc = STATE.locations.find(l => l.id === id);
+            if (id === 'gps') {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    STATE.coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                    refreshWeather();
+                    renderLocationBar();
+                }, () => selectLocation('taipei'));
+            } else {
+                STATE.coords = { lat: loc.lat, lon: loc.lon };
+                refreshWeather();
+                renderLocationBar();
+            }
+        }
+
+        function toggleSearch(show) {
+            document.getElementById('search-modal').classList.toggle('hidden', !show);
+            if (show) document.getElementById('search-input').focus();
+        }
+
+        async function performSearch() {
+            const q = document.getElementById('search-input').value;
+            if (!q) return;
+            const results = document.getElementById('search-results');
+            results.innerHTML = `<div class="text-center opacity-30 py-4">${I18N[STATE.lang].searching}</div>`;
+
+            try {
+                const data = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&accept-language=${STATE.lang}`).then(r => r.json());
+                results.innerHTML = '';
+                if (data.length === 0) {
+                    results.innerHTML = `<div class="text-center opacity-30 py-4">${I18N[STATE.lang].no_results}</div>`;
+                    return;
+                }
+                data.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = "p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-blue-600/20 border border-white/5 transition";
+                    const main = item.display_name.split(',')[0];
+                    row.innerHTML = `<div class="font-black text-sm">${main}</div><div class="text-[10px] opacity-30 truncate">${item.display_name}</div>`;
+                    row.onclick = () => {
+                        const newLoc = { id: 'c'+Date.now(), name: main, lat: parseFloat(item.lat), lon: parseFloat(item.lon) };
+                        STATE.locations.push(newLoc);
+                        localStorage.setItem('zenith_locs', JSON.stringify(STATE.locations));
+                        toggleSearch(false);
+                        selectLocation(newLoc.id);
+                    };
+                    results.appendChild(row);
+                });
+            } catch (e) { results.innerHTML = '<div class="text-red-400 text-center py-4">Search Error</div>'; }
+        }
+
+        window.onload = () => changeLang(STATE.lang);
     </script>
 </body>
 </html>
-
