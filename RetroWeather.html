@@ -170,6 +170,8 @@
                         <option value="kma_gdps">KMA</option>
                         <option value="ecmwf_ifs025">ECMWF</option>
                         <option value="gfs_global">GFS</option>
+                        <option value="gfs_graphcast025">GraphCast</option>
+                        <option value="ecmwf_aifs025_single">AIFS</option>
                     </select>
                 </div>
                 <h2 id="city-name" class="text-3xl font-black text-slate-900 truncate tracking-tight mb-2">---</h2>
@@ -239,10 +241,25 @@
             </div>
         </section>
 
+        <section class="space-y-4">
+            <h3 id="ui-lbl-cmp" class="text-xs font-black text-slate-400 uppercase tracking-widest">模式比較</h3>
+            <div class="chart-wrapper" style="height:240px"><canvas id="chart-cmp"></canvas></div>
+            <p id="ui-lbl-cmp-rain" class="text-[10px] font-black text-slate-400 uppercase tracking-widest"></p>
+            <div id="cmp-table" class="overflow-x-auto no-scrollbar"></div>
+            <p id="cmp-msg" class="text-[10px] font-bold text-slate-400"></p>
+        </section>
+
+        <section class="space-y-4">
+            <h3 id="ui-lbl-ens" class="text-xs font-black text-slate-400 uppercase tracking-widest">WeatherNext 2</h3>
+            <div class="chart-wrapper" style="height:260px"><canvas id="chart-ens"></canvas></div>
+            <p id="ui-ens-note" class="text-[10px] font-bold text-slate-400"></p>
+            <p id="ens-msg" class="text-[10px] font-bold text-slate-400"></p>
+        </section>
+
         <section class="space-y-4 pb-20">
             <h3 id="ui-lbl-14d" class="text-xs font-black text-slate-400 uppercase tracking-widest">14日深度預報</h3>
             <div id="list-14d" class="space-y-3"></div>
-            <p class="text-[9px] text-center font-black text-slate-300 uppercase tracking-widest">Data Source: Open-Meteo / DWD / NOAA / JMA</p>
+            <p class="text-[9px] text-center font-black text-slate-300 uppercase tracking-widest">Data Source: Open-Meteo / JMA / KMA / ECMWF / NOAA / Google DeepMind</p>
         </section>
     </main>
 
@@ -255,6 +272,9 @@
                 diff_up_y: "高於昨", diff_down_y: "低於昨",
                 feels: "體感溫度", feels_short: "體感", diff: "變動", temp_diff: "溫", wind_diff: "風",
                 yest_label: "昨日",
+                cmp: "模式比較：最高溫", cmp_rain: "各模式預測降雨量 (mm)", cmp_fail: "此模式暫時無法取得",
+                ens: "WeatherNext 2 集合預報", ens_note: "實線＝中位數，色帶＝P10–P90 範圍，柱＝降雨機率 (≥1mm，64 個成員)",
+                ens_fail: "集合預報暫時無法取得", ens_prob: "降雨機率",
                 cities: { gps: "目前位置", zhubei: "竹北"}
             },
             en: {
@@ -264,6 +284,9 @@
                 diff_up_y: "Higher than Yest", diff_down_y: "Lower than Yest",
                 feels: "Feels Like", feels_short: "Feels", diff: "Diff", temp_diff: "Temp", wind_diff: "Wind",
                 yest_label: "Yest",
+                cmp: "Model Comparison: High", cmp_rain: "Forecast rain by model (mm)", cmp_fail: "Unavailable for this model",
+                ens: "WeatherNext 2 Ensemble", ens_note: "Line = median, band = P10–P90, bars = rain probability (≥1mm, 64 members)",
+                ens_fail: "Ensemble unavailable right now", ens_prob: "Rain prob.",
                 cities: { gps: "GPS", zhubei: "Zhubei"}
             },
             ja: {
@@ -273,6 +296,9 @@
                 diff_up_y: "昨日より高い", diff_down_y: "昨日より低い",
                 feels: "体感溫度", feels_short: "体感", diff: "変化", temp_diff: "気温", wind_diff: "風",
                 yest_label: "昨日",
+                cmp: "モデル比較：最高気温", cmp_rain: "モデル別 予想降水量 (mm)", cmp_fail: "このモデルは取得できません",
+                ens: "WeatherNext 2 アンサンブル", ens_note: "実線＝中央値、帯＝P10–P90、棒＝降水確率 (≥1mm、64メンバー)",
+                ens_fail: "アンサンブルを取得できません", ens_prob: "降水確率",
                 cities: { gps: "現在地", zhubei: "竹北"}
             }
         };
@@ -289,7 +315,8 @@
             charts: {},
             map: null,
             marker: null,
-            sunTimes: []
+            sunTimes: [],
+            reqId: 0
         };
 
         Chart.register(ChartDataLabels);
@@ -311,16 +338,23 @@
             return '☁️';
         }
 
+        const MODEL_LABELS = {
+            jma_seamless: 'JMA', kma_gdps: 'KMA', ecmwf_ifs025: 'ECMWF', gfs_global: 'GFS',
+            gfs_graphcast025: 'GraphCast', ecmwf_aifs025_single: 'AIFS'
+        };
+        const MODEL_COLORS = {
+            jma_seamless: '#FF3B30', kma_gdps: '#AF52DE', ecmwf_ifs025: '#007AFF', gfs_global: '#34C759',
+            gfs_graphcast025: '#FF9500', ecmwf_aifs025_single: '#00B8D9'
+        };
+        const COMPARE_MODELS = ['ecmwf_ifs025', 'gfs_global', 'gfs_graphcast025', 'ecmwf_aifs025_single'];
+
         function determineModel(lat, lon) {
             if (STATE.model !== 'auto') return STATE.model;
 
             // 1. 台灣區域 (JMA)
             if (lat >= 21.8 && lat <= 25.8 && lon >= 119.0 && lon <= 122.8) return 'jma_seamless';
-            
-            // 2. 日本區域 (JMA)
-            if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 150) return 'jma_seamless';
 
-            // 2. 韓國區域 (KMA) - 優先於日本，覆蓋首爾
+            // 2. 韓國區域 (KMA) - 須在日本之前判斷，否則首爾會被日本範圍涵蓋
             if (lat >= 33.0 && lat <= 39.0 && lon >= 124.0 && lon <= 130.5) return 'kma_gdps';
 
             // 3. 日本區域 (JMA)
@@ -373,7 +407,8 @@
         async function refresh() {
             const { lat, lon } = STATE.coords;
             const model = determineModel(lat, lon);
-            document.getElementById('actual-model-badge').innerText = model.split('_')[0].toUpperCase();
+            document.getElementById('actual-model-badge').innerText = MODEL_LABELS[model] || model.split('_')[0].toUpperCase();
+            const reqId = ++STATE.reqId;
 
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation,weathercode,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,windspeed_10m_max,sunrise,sunset&timezone=auto&past_days=2&forecast_days=14&models=${model}`;
 
@@ -416,6 +451,8 @@
                 renderD8Chart(d); 
                 render14DayList(d);
                 reverseGeocode(lat, lon);
+                renderCompare(lat, lon, model, reqId);
+                renderEnsemble(lat, lon, reqId);
 
             } catch (err) { console.error(err); } 
             finally { document.getElementById('loader').style.display = 'none'; }
@@ -548,6 +585,130 @@
                     }
                 }
             });
+        }
+
+
+        function quantile(sorted, q) {
+            if (!sorted.length) return null;
+            const pos = (sorted.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+            return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+        }
+
+        async function renderCompare(lat, lon, mainModel, reqId) {
+            const models = [mainModel, ...COMPARE_MODELS.filter(m => m !== mainModel)];
+            const msg = document.getElementById('cmp-msg');
+            msg.innerText = '';
+            // 每個模式各自請求，單一模式失敗不會影響其他模式
+            const results = await Promise.allSettled(models.map(m =>
+                fetchWithRetry(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,precipitation_sum&timezone=auto&forecast_days=8&models=${m}`, 2)
+            ));
+            if (reqId !== STATE.reqId) return;
+
+            let dates = [];
+            const series = [];
+            const failed = [];
+            results.forEach((r, i) => {
+                const m = models[i];
+                const d = r.status === 'fulfilled' ? getDataField(r.value, 'daily', m) : null;
+                const tmax = d && (d.temperature_2m_max || d[`temperature_2m_max_${m}`]);
+                if (!tmax || tmax.every(v => v === null)) { failed.push(MODEL_LABELS[m] || m); return; }
+                if (!dates.length) dates = d.time;
+                series.push({ m, tmax, rain: d.precipitation_sum || d[`precipitation_sum_${m}`] || [] });
+            });
+            if (failed.length) msg.innerText = `${t('cmp_fail')}: ${failed.join(', ')}`;
+
+            const labels = dates.map(x => { const dt = new Date(x); return (dt.getMonth() + 1) + '/' + dt.getDate(); });
+            if (STATE.charts.c) STATE.charts.c.destroy();
+            STATE.charts.c = new Chart(document.getElementById('chart-cmp'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: series.map(x => ({
+                        label: MODEL_LABELS[x.m] || x.m, data: x.tmax,
+                        borderColor: MODEL_COLORS[x.m] || '#8E8E93', backgroundColor: MODEL_COLORS[x.m] || '#8E8E93',
+                        borderWidth: x.m === mainModel ? 3.5 : 2, tension: 0.35, pointRadius: 2, spanGaps: true
+                    }))
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    layout: { padding: { top: 8 } },
+                    plugins: {
+                        datalabels: { display: false },
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, font: { size: 10, weight: '800' } } }
+                    },
+                    scales: {
+                        y: { grace: '10%', ticks: { font: { size: 10, weight: '800' }, callback: v => v + '°' } },
+                        x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' } }
+                    }
+                }
+            });
+
+            document.getElementById('ui-lbl-cmp-rain').innerText = t('cmp_rain');
+            const head = labels.map(l => `<th class="px-2 py-1 text-slate-400 font-black">${l}</th>`).join('');
+            const rows = series.map(x => {
+                const cells = labels.map((_, i) => {
+                    const v = x.rain[i];
+                    return `<td class="px-2 py-1 text-center ${v >= 1 ? 'text-blue-600 font-black' : 'text-slate-400'}">${v == null ? '-' : v.toFixed(1)}</td>`;
+                }).join('');
+                return `<tr><td class="px-2 py-1 font-black whitespace-nowrap" style="color:${MODEL_COLORS[x.m] || '#8E8E93'}">${MODEL_LABELS[x.m] || x.m}</td>${cells}</tr>`;
+            }).join('');
+            document.getElementById('cmp-table').innerHTML = `<table class="w-full text-[10px]"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        async function renderEnsemble(lat, lon, reqId) {
+            const msg = document.getElementById('ens-msg');
+            msg.innerText = '';
+            try {
+                const raw = await fetchWithRetry(`https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,precipitation_sum&timezone=auto&forecast_days=14&models=google_weathernext2_ensemble`, 3);
+                if (reqId !== STATE.reqId) return;
+                const d = raw.daily;
+                const memberKeys = base => Object.keys(d).filter(k => k === base || k.startsWith(base + '_member'));
+                const tKeys = memberKeys('temperature_2m_max'), pKeys = memberKeys('precipitation_sum');
+                if (!tKeys.length) throw new Error('no ensemble data');
+
+                const labels = [], p10 = [], p50 = [], p90 = [], prob = [];
+                d.time.forEach((day, i) => {
+                    const dt = new Date(day);
+                    labels.push((dt.getMonth() + 1) + '/' + dt.getDate());
+                    const ts = tKeys.map(k => d[k][i]).filter(v => v != null).sort((a, b) => a - b);
+                    p10.push(quantile(ts, 0.1)); p50.push(quantile(ts, 0.5)); p90.push(quantile(ts, 0.9));
+                    const ps = pKeys.map(k => d[k][i]).filter(v => v != null);
+                    prob.push(ps.length ? Math.round(ps.filter(v => v >= 1).length / ps.length * 100) : 0);
+                });
+
+                if (STATE.charts.e) STATE.charts.e.destroy();
+                STATE.charts.e = new Chart(document.getElementById('chart-ens'), {
+                    data: {
+                        labels,
+                        datasets: [
+                            { type: 'bar', label: t('ens_prob'), data: prob, yAxisID: 'yRain', backgroundColor: 'rgba(0, 122, 255, 0.25)', borderColor: '#007AFF', borderWidth: 1, borderRadius: 4, barPercentage: 0.6, order: 3 },
+                            { type: 'line', label: 'P90', data: p90, yAxisID: 'y', borderColor: 'rgba(255, 59, 48, 0)', backgroundColor: 'rgba(255, 59, 48, 0.15)', pointRadius: 0, fill: '+1', tension: 0.4, order: 2, datalabels: { display: false } },
+                            { type: 'line', label: 'P10', data: p10, yAxisID: 'y', borderColor: 'rgba(255, 59, 48, 0)', pointRadius: 0, tension: 0.4, order: 2, datalabels: { display: false } },
+                            { type: 'line', label: 'P50', data: p50, yAxisID: 'y', borderColor: '#FF3B30', borderWidth: 3, pointRadius: 3, pointBackgroundColor: 'white', tension: 0.4, order: 1,
+                              datalabels: { display: true, align: 'top', formatter: v => Math.round(v) + '°', font: { size: 9, weight: '900' }, color: '#1C1C1E' } }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 16 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: { display: false }
+                        },
+                        scales: {
+                            y: { display: false, grace: '30%' },
+                            yRain: { display: false, position: 'right', min: 0, max: 250 },
+                            x: { grid: { display: false }, ticks: { font: { weight: '800', size: 10 }, color: '#8E8E93' } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error(e);
+                if (reqId === STATE.reqId) {
+                    if (STATE.charts.e) { STATE.charts.e.destroy(); STATE.charts.e = null; }
+                    msg.innerText = t('ens_fail');
+                }
+            }
         }
 
         function render14DayList(d) {
@@ -711,6 +872,9 @@
             document.getElementById('ui-lbl-12h').innerText = t('h12');
             document.getElementById('ui-lbl-8d').innerText = t('d8');
             document.getElementById('ui-lbl-14d').innerText = t('d14');
+            document.getElementById('ui-lbl-cmp').innerText = t('cmp');
+            document.getElementById('ui-lbl-ens').innerText = t('ens');
+            document.getElementById('ui-ens-note').innerText = t('ens_note');
             document.getElementById('model-select').value = STATE.model;
 
             ['zh', 'ja', 'en'].forEach(l => {

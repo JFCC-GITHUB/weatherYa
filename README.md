@@ -22,8 +22,10 @@
   - 預設提供「現在地」（GPS）與「竹北」兩個地點。
   - 可以用上方的搜尋按鈕搜尋全球城市，加入為新的地點；不需要的地點可以刪除（竹北與現在地為固定項目）。
   - 目前位置無法取得時，會退回使用預設座標。
-- **氣象模式切換**：右上角可選擇 `Auto (Geo)`、`JMA`（日本氣象廳）、`KMA`（韓國氣象廳）、`ECMWF`、`GFS`。
-  - `Auto` 會依座標自動選擇模式：台灣與日本使用 JMA，韓國使用 KMA，美洲使用 GFS，其他地區依距離最近的中心城市決定（倫敦→ECMWF、華盛頓→GFS、東京→JMA、首爾→KMA）。
+- **氣象模式切換**：右上角可選擇 `Auto (Geo)`、`JMA`（日本氣象廳）、`KMA`（韓國氣象廳）、`ECMWF`、`GFS`、`GraphCast`（Google DeepMind 的 AI 模型，使用 NOAA GFS 初始場版本）、`AIFS`（ECMWF 的 AI 模型）。
+  - `Auto` 會依座標自動選擇模式：台灣使用 JMA，韓國使用 KMA，日本使用 JMA，美洲使用 GFS，其他地區依距離最近的中心城市決定（倫敦→ECMWF、華盛頓→GFS、東京→JMA、首爾→KMA）。
+- **模式比較**：同時取得目前模式、ECMWF、GFS、GraphCast、AIFS 的未來 8 天最高溫（折線圖）與預測降雨量（表格），直接看出各模式的分歧。各模式獨立請求，單一模式失敗只會標註，不影響其他模式。
+- **WeatherNext 2 集合預報**：Google 的 64 成員 AI 集合預報（Open-Meteo ensemble API），顯示未來 14 天最高溫的中位數、P10–P90 範圍，以及降雨機率（≥1 mm 的成員比例）。
 - **迷你地圖**：以 CARTO 底圖顯示目前地點位置。
 - **多語系**：繁體中文、日本語、English，可隨時切換。
 - **設定保存**：語言、目前地點、自訂地點與氣象模式都會存在瀏覽器的 `localStorage`，下次開啟會保留。
@@ -53,7 +55,7 @@
 - [Chart.js 4.4.1](https://www.chartjs.org/) 與 [chartjs-plugin-datalabels 2.2.0](https://chartjs-plugin-datalabels.netlify.app/)（圖表）
 - [Leaflet 1.9.4](https://leafletjs.com/)（地圖）
 - [Google Fonts](https://fonts.google.com/)：Inter、Noto Sans TC / JP
-- [Open-Meteo](https://open-meteo.com/) 預報與地理編碼 API
+- [Open-Meteo](https://open-meteo.com/) 預報、集合預報（WeatherNext 2）與地理編碼 API
 - [OpenStreetMap Nominatim](https://nominatim.org/)（反向地理編碼，將座標轉為城市名稱）
 - [CARTO](https://carto.com/) 底圖
 
@@ -73,6 +75,7 @@ python3 -m http.server 8000
 
 ## ⚠️ 已知限制與待改進事項
 
+- **新模型未經即時驗證**：GraphCast（`gfs_graphcast025`）與 AIFS（`ecmwf_aifs025_single`）的模型代號依 Open-Meteo 文件填寫；開發環境當天 API 額度用完，未能用真實回應驗證。若某模式在你的地點沒有資料，模式比較區會標註「此模式暫時無法取得」。選為主要模式時，若該模式不提供過去 2 天資料，昨日回顧可能顯示為 0。
 - **外部依賴**：所有函式庫與資料都依賴 CDN 與第三方 API，離線時無法取得新資料。
 - **資料延遲**：天氣資料來自 Open-Meteo 的模式預報，並非即時觀測站資料。
 - **Tailwind CDN**：`cdn.tailwindcss.com` 為開發用途的 CDN 版本，正式環境建議改用編譯版。
