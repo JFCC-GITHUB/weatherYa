@@ -348,6 +348,14 @@
         };
         const COMPARE_MODELS = ['ecmwf_ifs025', 'gfs_global', 'gfs_graphcast025', 'ecmwf_aifs025_single'];
 
+        // 兩點間大圓距離 (公里, Haversine)
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371, rad = Math.PI / 180;
+            const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(a));
+        }
+
         function determineModel(lat, lon) {
             if (STATE.model !== 'auto') return STATE.model;
 
