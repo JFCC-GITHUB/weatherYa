@@ -42,8 +42,9 @@
 | 項目 | 說明 |
 | --- | --- |
 | `RetroWeather.html` | 主程式：HTML 結構、樣式與所有 JavaScript 邏輯 |
+| `icon-512.png` | PWA 圖示（512×512） |
 | `manifest.json` | PWA 清單（名稱、啟動網址、主題色） |
-| `sw.js` | Service Worker，採用 Cache-First 策略快取核心檔案 |
+| `sw.js` | Service Worker，採用網路優先、離線時退回快取的策略；跨網域 API 請求不攔截 |
 | `LICENSE` | GNU Affero General Public License v3.0（AGPL-3.0） |
 
 前端函式庫與服務（皆由 CDN 載入）：
@@ -72,8 +73,6 @@ python3 -m http.server 8000
 
 ## ⚠️ 已知限制與待改進事項
 
-- **圖示檔缺失**：`manifest.json` 與 `sw.js` 參照的 `icon-512.png` 目前不在倉庫中，安裝 PWA 時圖示可能無法顯示。
-- **Service Worker 尚未註冊**：`sw.js` 存在，但 `RetroWeather.html` 內沒有 `navigator.serviceWorker.register(...)`，且 HTML 也沒有 `<link rel="manifest">`，因此目前離線快取與「安裝為 App」的功能實際上不會啟用。
 - **外部依賴**：所有函式庫與資料都依賴 CDN 與第三方 API，離線時無法取得新資料。
 - **資料延遲**：天氣資料來自 Open-Meteo 的模式預報，並非即時觀測站資料。
 - **Tailwind CDN**：`cdn.tailwindcss.com` 為開發用途的 CDN 版本，正式環境建議改用編譯版。
