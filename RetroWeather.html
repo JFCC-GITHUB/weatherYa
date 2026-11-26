@@ -352,6 +352,13 @@
             <p id="cmp-msg" class="text-[10px] font-bold text-slate-400"></p>
         </section>
 
+        <section class="space-y-4" data-sec="acc" data-tab="md">
+            <h3 id="ui-lbl-acc" class="text-xs font-black text-slate-400 uppercase tracking-widest">預報準確度</h3>
+            <p id="ui-acc-note" class="text-[11px] font-bold text-slate-500 leading-relaxed"></p>
+            <div id="acc-list" class="space-y-2"></div>
+            <p id="acc-msg" class="text-[10px] font-bold text-slate-400"></p>
+        </section>
+
         <section class="space-y-4" data-sec="ens" data-tab="md">
             <h3 id="ui-lbl-ens" class="text-xs font-black text-slate-400 uppercase tracking-widest">Google WeatherNext 2</h3>
             <p id="ui-ens-note" class="text-[11px] font-bold text-slate-500 leading-relaxed"></p>
@@ -396,6 +403,7 @@
                 radar: "雷達", radar_title: "雨雲雷達", radar_fail: "雷達資料暫時無法取得", radar_forecast: "（預測）",
                 updated: "更新於", ptr_pull: "下拉重新整理", ptr_release: "放開即可重新整理",
                 tab_ov: "概覽", tab_md: "模式", tab_d14: "14日",
+                acc: "預報準確度（過去 7 天）", acc_note: "拿各模式「前一天發布的預測」和「事後的最新分析值」比，看逐時氣溫平均差幾度，數字越小越準。對照值是模式自己事後的分析，不是氣象站實測，所以只適合用來互相比較。", acc_fail: "暫無資料", acc_none: "資料不足，無法排名",
                 cities: { gps: "目前位置", zhubei: "竹北"}
             },
             en: {
@@ -423,6 +431,7 @@
                 radar: "Radar", radar_title: "Rain radar", radar_fail: "Radar data unavailable", radar_forecast: "(forecast)",
                 updated: "Updated", ptr_pull: "Pull to refresh", ptr_release: "Release to refresh",
                 tab_ov: "Overview", tab_md: "Models", tab_d14: "14 Days",
+                acc: "Forecast accuracy (last 7 days)", acc_note: "Compares what each model predicted a day ahead with its own later analysis: the average hourly temperature error. Smaller is better. The reference is the model's analysis, not a weather station, so use it only to compare models with each other.", acc_fail: "No data", acc_none: "Not enough data to rank",
                 cities: { gps: "GPS", zhubei: "Zhubei"}
             },
             ja: {
@@ -450,6 +459,7 @@
                 radar: "レーダー", radar_title: "雨雲レーダー", radar_fail: "レーダーを取得できません", radar_forecast: "（予測）",
                 updated: "更新", ptr_pull: "引いて更新", ptr_release: "離して更新",
                 tab_ov: "概要", tab_md: "モデル", tab_d14: "14日",
+                acc: "予報の精度（過去7日）", acc_note: "各モデルが前日に出した予報と、後から得られた最新の解析値を比べ、毎時気温の平均誤差を表示します。小さいほど正確です。基準はモデル自身の解析値で観測所の実測ではないため、モデル同士の比較にのみ使えます。", acc_fail: "データなし", acc_none: "順位付けに十分なデータがありません",
                 cities: { gps: "現在地", zhubei: "竹北"}
             }
         };
@@ -606,6 +616,8 @@
                 b.className = `tab-btn flex-1 py-2 rounded-xl text-[12px] font-black whitespace-nowrap ${on ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'}`;
             });
             requestAnimationFrame(() => Object.values(STATE.charts).forEach(c => { try { c && c.resize(); } catch (e) {} }));
+            // 準確度排行只在「模式」分頁才載入，省 API 額度；首次載入前座標還不是真正的位置，所以要等 loadedOnce
+            if (tab === 'md' && STATE.loadedOnce) loadAccuracy(STATE.reqId);
         }
 
         function isDark() { return document.documentElement.classList.contains('dark'); }
@@ -725,6 +737,7 @@
                 const ensPromise = fetchEnsemble(lat, lon);
                 renderCompare(lat, lon, model, reqId, ensPromise);
                 renderEnsemble(reqId, ensPromise);
+                if (STATE.tab === 'md') loadAccuracy(reqId);
 
             } catch (err) { console.error(err); } 
             finally { setLoading(false); }
@@ -999,6 +1012,39 @@
                 return `<tr><td class="px-2 py-1 font-black whitespace-nowrap" style="color:${x.color}">${x.label}</td>${cells}</tr>`;
             }).join('');
             document.getElementById('cmp-table').innerHTML = `<table class="w-full text-[10px] whitespace-nowrap"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        // 預報準確度：各模式「前一天發布的預測」對「事後的最新分析」，過去 7 天逐時氣溫的平均絕對誤差
+        async function loadAccuracy(reqId) {
+            const { lat, lon } = STATE.coords;
+            const main = determineModel(lat, lon);
+            const models = [main, ...COMPARE_MODELS.filter(m => m !== main)];
+            const list = document.getElementById('acc-list'), msg = document.getElementById('acc-msg');
+            msg.innerText = '';
+            const res = await Promise.allSettled(models.map(m =>
+                fetchWithRetry(`https://previous-runs-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,temperature_2m_previous_day1&timezone=auto&past_days=7&forecast_days=1&models=${m}`, 3)
+            ));
+            if (reqId !== STATE.reqId) return;
+            const rows = [], failed = [];
+            res.forEach((r, i) => {
+                const m = models[i], raw = r.status === 'fulfilled' ? r.value : null;
+                const h = raw && getDataField(raw, 'hourly', m);
+                const actual = h && (h.temperature_2m || h[`temperature_2m_${m}`]);
+                const fcst = h && (h.temperature_2m_previous_day1 || h[`temperature_2m_previous_day1_${m}`]);
+                let sum = 0, n = 0;
+                // 只比「現在之前」的時數：之後的 temperature_2m 仍是預測，不是分析
+                if (actual && fcst) for (let k = 0, end = Math.min(findNowIdx(h, raw.utc_offset_seconds ?? 0), actual.length); k < end; k++)
+                    if (actual[k] != null && fcst[k] != null) { sum += Math.abs(fcst[k] - actual[k]); n++; }
+                if (n >= 24) rows.push({ m, mae: sum / n }); else failed.push(MODEL_LABELS[m] || m);
+            });
+            rows.sort((a, b) => a.mae - b.mae);
+            const worst = Math.max(...rows.map(r => r.mae), 0.1);
+            list.innerHTML = rows.map((r, i) => `<div class="flex items-center gap-2 text-[12px] font-black">
+                <span class="w-6 text-center">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
+                <span class="w-16 truncate" style="color:${MODEL_COLORS[r.m] || '#8E8E93'}">${MODEL_LABELS[r.m] || r.m}</span>
+                <div class="flex-1 h-3 rounded-full bg-slate-100"><div class="h-3 rounded-full" style="width:${Math.max(4, r.mae / worst * 100)}%;background:${MODEL_COLORS[r.m] || '#8E8E93'}"></div></div>
+                <span class="w-12 text-right">${cvDiff(r.mae).toFixed(1)}°</span></div>`).join('');
+            msg.innerText = !rows.length ? t('acc_none') : (failed.length ? `${t('acc_fail')}: ${failed.join(', ')}` : '');
         }
 
         async function renderEnsemble(reqId, ensPromise) {
@@ -1426,6 +1472,8 @@
             document.getElementById('ui-lbl-14d').innerText = t('d14');
             document.getElementById('ui-lbl-cmp').innerText = t('cmp');
             document.getElementById('ui-lbl-ens').innerText = t('ens');
+            document.getElementById('ui-lbl-acc').innerText = t('acc');
+            document.getElementById('ui-acc-note').innerText = t('acc_note');
             document.getElementById('ui-ens-note').innerText = t('ens_note');
             document.getElementById('ui-cmp-note').innerText = t('cmp_note');
             document.getElementById('ui-lbl-det').innerText = t('det');
