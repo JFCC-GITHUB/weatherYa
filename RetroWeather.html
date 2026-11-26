@@ -10,7 +10,6 @@
     <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(console.error);</script>
     <script>(function(){try{var s=localStorage.getItem('wy_v6_theme');var d=s?s==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();</script>
     
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -156,6 +155,8 @@
         html.dark select { color: #E5E7EB; }
         html.dark .stat-card.bg-blue-600 { background-color: #1D4ED8; }
     </style>
+    <!-- 必須在自訂 <style> 之後載入，工具類別（如 border-none）才能覆蓋 .stat-card 等自訂樣式，與原本 CDN 的行為一致 -->
+    <link rel="stylesheet" href="tailwind.css">
 </head>
 <body>
 

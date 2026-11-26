@@ -5,10 +5,11 @@
  *       跨網域請求（天氣 API、CDN、地圖）不攔截，直接交給瀏覽器。
  */
 
-const CACHE_NAME = 'retroweather-pro-v2';
+const CACHE_NAME = 'retroweather-pro-v3';
 const ASSETS_TO_CACHE = [
   'RetroWeather.html',
   'manifest.json',
+  'tailwind.css',
   'icon-512.png'
 ];
 

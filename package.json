@@ -1,0 +1,12 @@
+{
+  "name": "weatherya",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i tailwind.input.css -o tailwind.css --content ./RetroWeather.html --minify",
+    "test": "node tests/smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "tailwindcss": "3.4.19"
+  }
+}
