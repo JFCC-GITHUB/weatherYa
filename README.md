@@ -62,6 +62,8 @@
 | `icon-512.png` | PWA 圖示（512×512） |
 | `manifest.json` | PWA 清單（名稱、啟動網址、主題色） |
 | `sw.js` | Service Worker，採用網路優先、離線時退回快取的策略；跨網域 API 請求不攔截 |
+| `tailwind.css` / `tailwind.input.css` | 預先編譯的樣式與其輸入檔 |
+| `tests/smoke.js` | 自動化冒煙測試 |
 | `LICENSE` | GNU Affero General Public License v3.0（AGPL-3.0） |
 
 前端函式庫與服務（皆由 CDN 載入）：
@@ -75,6 +77,18 @@
 - [RainViewer](https://www.rainviewer.com/api.html)（雨雲雷達圖磚）
 - [OpenStreetMap Nominatim](https://nominatim.org/)（反向地理編碼，將座標轉為城市名稱）
 - [CARTO](https://carto.com/) 底圖
+
+## 🧪 開發、建置與測試
+
+頁面使用**預先編譯**的 Tailwind（`tailwind.css`），不在瀏覽器裡即時編譯。改了 `RetroWeather.html` 的樣式類別後，要重新編譯並一起提交：
+
+```bash
+npm install
+npm run build:css     # 產生 tailwind.css
+npm test              # 冒煙測試（Playwright + 模擬 API）；首次需 npx playwright install chromium
+```
+
+GitHub Actions（`.github/workflows/ci.yml`）每次推送與 PR 都會：重新編譯 CSS 並確認與提交的 `tailwind.css` 一致，然後執行冒煙測試。冒煙測試涵蓋時區、分頁、詳細資訊、°C/°F、深色模式、多語系、離線快取等。
 
 ## 📦 本機執行
 
@@ -97,7 +111,6 @@ python3 -m http.server 8000
 - **偶發的連線失敗**：Open-Meteo 偶爾回傳空內容，程式會自動重試；全部失敗時該區塊會顯示提示文字。
 - **外部依賴**：所有函式庫都來自 CDN，模式比較與 WeatherNext 2 沒有離線快取；完全離線且從未載入過時無法取得新資料。
 - **資料延遲**：天氣資料來自 Open-Meteo 的模式預報，並非即時觀測站資料。
-- **Tailwind CDN**：`cdn.tailwindcss.com` 為開發用途的 CDN 版本，正式環境建議改用編譯版。
 - **自動更新有限**：頁面停留在前景時不會定時刷新；需下拉重新整理，或離開後回來（超過 15 分鐘）才會自動更新。
 - **雷達資料**：RainViewer 的公開雷達圖磚解析度與縮放層級有限，放大後會變模糊；該服務若調整公開 API，雷達可能暫時無法顯示。
 - **未提供氣象署警特報**：台灣中央氣象署的警特報 API 需要申請金鑰，不適合放在純前端的公開頁面，因此未納入。
