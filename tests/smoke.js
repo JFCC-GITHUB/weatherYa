@@ -42,6 +42,13 @@ function mockDetails() {
            daily: { uv_index_max: [7.2, 7], sunrise: days.map(x => x + 'T06:02'), sunset: days.map(x => x + 'T17:21') } };
 }
 
+const ACC_ERR = { ecmwf_ifs025: 0.4, icon_seamless: 0.6, jma_seamless: 0.8, gfs_global: 1.2 };
+function mockPrevRuns(u) {
+  const m = u.searchParams.get('models'), start = tpeMidnight(7), t = [], a = [], f = [];
+  for (let i = 0; i < 8 * 24; i++) { const d = new Date(start.getTime() + i * 36e5); t.push(`${dkey(d)}T${pad(d.getUTCHours())}:00`); a.push(20); f.push(m in ACC_ERR ? 20 + (i % 2 ? 1 : -1) * ACC_ERR[m] : null); }
+  return { utc_offset_seconds: 28800, hourly: { time: t, temperature_2m: a, temperature_2m_previous_day1: f } };
+}
+
 (async () => {
   const srv = await serve(), base = `http://localhost:${srv.address().port}/RetroWeather.html`;
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
@@ -57,6 +64,7 @@ function mockDetails() {
     json(r, mockForecast(u));
   });
   await ctx.route('https://ensemble-api.open-meteo.com/**', r => apiDown ? r.abort() : json(r, mockEnsemble(new URL(r.request().url()))));
+  await ctx.route('https://previous-runs-api.open-meteo.com/**', r => json(r, mockPrevRuns(new URL(r.request().url()))));
   await ctx.route('https://air-quality-api.open-meteo.com/**', r => json(r, { current: { us_aqi: 58 } }));
   await ctx.route('https://nominatim.openstreetmap.org/**', r => json(r, { address: { city: 'Zhubei' } }));
   for (const pat of ['https://api.rainviewer.com/**', '**/*basemaps.cartocdn.com/**', 'https://fonts.googleapis.com/**']) await ctx.route(pat, r => r.abort());
@@ -83,9 +91,18 @@ function mockDetails() {
   });
   check('分頁：概覽 / 模式 / 14日', async () => {
     assert.strictEqual(await visible(), 'details,h12,d8');
-    await page.click('#tabbar button[data-tab=md]'); assert.strictEqual(await visible(), 'cmp,ens');
+    await page.click('#tabbar button[data-tab=md]'); assert.strictEqual(await visible(), 'cmp,acc,ens');
     await page.click('#tabbar button[data-tab=d14]'); assert.strictEqual(await visible(), 'd14');
     assert.strictEqual(await page.$$eval('#list-14d > div', x => x.length), 14);
+    await page.click('#tabbar button[data-tab=ov]');
+  });
+  check('準確度排行：由小到大、無資料的模式被標註、°F 單位換算', async () => {
+    await page.click('#tabbar button[data-tab=md]');
+    await page.waitForFunction(() => document.querySelectorAll('#acc-list > div').length > 0, null, { timeout: 20000 });
+    const rows = await page.$$eval('#acc-list > div', x => x.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+    assert.deepStrictEqual(rows.map(r => r.split(' ')[1]), ['ECMWF', 'ICON', 'JMA', 'GFS']);
+    assert.ok(rows[0].endsWith('0.4°') && rows[3].endsWith('1.2°'), rows.join(' | '));
+    assert.ok((await text('#acc-msg')).includes('AIFS'));
     await page.click('#tabbar button[data-tab=ov]');
   });
   check('詳細資訊與摘要', async () => {
